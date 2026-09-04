@@ -151,6 +151,7 @@ nav button .ni{font-size:19px;line-height:1}
 </style>
 </head>
 <body>
+<div id="updbar" style="display:none;position:sticky;top:0;z-index:45;background:rgba(0,229,255,.12);border-bottom:1px solid rgba(0,229,255,.4);padding:8px 12px;font-size:13px;color:var(--cy);cursor:pointer" onclick="forceUpdate()">🔄 发现新版本，点此立即更新</div>
 <div id="app">
   <main id="view"></main>
   <nav id="nav">
@@ -436,13 +437,15 @@ function coachDigest(){
   Object.keys(S.stateFlags||{}).forEach(k=>{ if(k==='gold'&&S.stateFlags[k]) lines.push('状态: 黄金定投暂停中(观望)'); });
   return lines.join('\n');
 }
-/* ---------- 自更新检查 ---------- */
+/* ---------- 自更新检查（页面内横幅，不依赖 service worker） ---------- */
 function checkUpdate(){
   try{
-    fetch('./version.json?v='+Date.now()).then(r=>r.ok?r.json():null).then(j=>{
+    fetch('./version.json?v='+Date.now(),{cache:'no-store'}).then(r=>r.ok?r.json():null).then(j=>{
       if(!j||!j.ver) return;
       const curV=(window.APP_VER_CUR||APP_VER);
-      if(j.ver!==curV&&j.ver>curV){ showToast('发现新版 '+j.ver+'，下拉刷新即更新','warn'); }
+      if(j.ver!==curV){
+        const bar=$('updbar'); if(bar){ bar.style.display='block'; }
+      }
     }).catch(()=>{});
   }catch(e){}
 }
