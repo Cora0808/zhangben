@@ -190,7 +190,7 @@ nav button .ni{font-size:19px;line-height:1}
    ================================================================ */
 /* ---------- 常量 ---------- */
 const KEY='wb_coach_v1';
-const APP_VER='v4.0.3';
+const APP_VER='v4.0.4';
 const TODAY=()=>{const d=new Date();return d.getFullYear()+'-'+P(d.getMonth()+1)+'-'+P(d.getDate());};
 const P=n=>n<10?'0'+n:''+n;
 const YM=dstr=>String(dstr||'').slice(0,7);
@@ -448,6 +448,23 @@ function checkUpdate(){
       }
     }).catch(()=>{});
   }catch(e){}
+}
+/* ---------- 安装到桌面 & 手动检查更新 ---------- */
+let deferredPrompt=null;
+window.addEventListener('beforeinstallprompt',e=>{ e.preventDefault(); deferredPrompt=e; try{ render(); }catch(x){} });
+function installApp(){
+  if(deferredPrompt){ deferredPrompt.prompt(); deferredPrompt.userChoice && deferredPrompt.userChoice.then(()=>{ deferredPrompt=null; try{render();}catch(x){} }); }
+  else showToast('请用浏览器菜单「添加到主屏幕/安装应用」','warn');
+}
+function checkUpdManual(){
+  try{
+    fetch('./version.json?v='+Date.now(),{cache:'no-store'}).then(r=>r.ok?r.json():null).then(j=>{
+      if(!j||!j.ver){ showToast('检查失败','err'); return; }
+      const cur=(window.APP_VER_CUR||APP_VER);
+      if(j.ver!==cur){ if(confirm('发现新版 '+j.ver+'（当前 '+cur+'），立即更新？')) forceUpdate(); }
+      else showToast('已是最新版 '+cur,'ok');
+    }).catch(()=>{ showToast('检查失败（离线？）','err'); });
+  }catch(e){ showToast('检查失败','err'); }
 }
 /* ---------- 备份导出/导入 ---------- */
 function exportJSON(){ const blob=new Blob([JSON.stringify(S,null,1)],{type:'application/json'}); const a=document.createElement('a'); a.href=URL.createObjectURL(blob); a.download='账本备份_'+TODAY()+'.json'; a.click(); S.lastExport=TODAY(); save(); showToast('备份已导出，请存好'); }
@@ -961,6 +978,11 @@ function renderSet(){
   h+='<div class="card"><div class="c-head"><div class="c-title">STATE / 状态开关</div></div>'+
      '<div class="row" style="border:none"><div class="mid"><div class="t1">黄金定投</div><div class="t2">观望暂停中时，教练不催你买金</div></div><button class="mini '+(S.stateFlags&&S.stateFlags.gold==='pause'?'cy':'')+'" onclick="toggleGoldPause()">'+(S.stateFlags&&S.stateFlags.gold==='pause'?'✓ 已暂停':'正常')+'</button></div>'+
      '<button class="btn ghost" style="margin-top:8px" onclick="editOnboard()">🔄 重设期初资产</button></div>';
+  h+='<div class="card"><div class="c-head"><div class="c-title">APP / 应用</div></div>'+
+     '<div style="display:flex;gap:8px;margin-bottom:8px">'+
+     '<button class="mini cy" style="flex:1" onclick="checkUpdManual()">🔄 检查更新</button>'+
+     '<button class="mini" style="flex:1" onclick="installApp()">📲 安装到桌面</button></div>'+
+     '<div style="font-size:11px;color:var(--txt3);line-height:1.7">当前版本 '+APP_VER+'（可在 <span style="color:var(--txt2)" onclick="window.open(\'https://github.com/Cora0808/zhangben\')">GitHub 查看</span>）。有新版时顶部会出现更新横幅，也可随时点上面按钮。以后我更新了你不用重装——自动生效或点一下更新。</div></div>';
   h+='<div class="card"><div class="c-head"><div class="c-title">COACH / 与教练同步</div></div>'+
      '<button class="btn" style="margin-bottom:8px" onclick="copyDigest()">📤 生成简报并复制（发给微信教练）</button>'+
      '<div style="font-size:11.5px;color:var(--txt3);line-height:1.7">复制后粘贴到微信发给 Hermes，我会基于你的画像给分析和理财建议。</div></div>';
