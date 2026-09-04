@@ -2,7 +2,7 @@
 <html lang="zh-CN">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover,interactive-widget=resizes-content">
 <meta name="theme-color" content="#05070c">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -192,7 +192,7 @@ nav button .ni{font-size:19px;line-height:1}
    ================================================================ */
 /* ---------- 常量 ---------- */
 const KEY='wb_coach_v1';
-const APP_VER='v4.2.1';
+const APP_VER='v4.2.2';
 const TODAY=()=>{const d=new Date();return d.getFullYear()+'-'+P(d.getMonth()+1)+'-'+P(d.getDate());};
 const P=n=>n<10?'0'+n:''+n;
 const YM=dstr=>String(dstr||'').slice(0,7);
@@ -1369,6 +1369,7 @@ window.addEventListener('focusin',e=>{
   },220);
 });
 window.addEventListener('focusout',()=>{ setTimeout(()=>kbMode(false),220); });
+window.addEventListener('input',e=>{ if(e.target&&e.target.matches&&e.target.matches('input,textarea')) setTimeout(kbMode,60); });
 window.addEventListener('resize',()=>{ setTimeout(kbMode,80); });
 if(window.visualViewport) window.visualViewport.addEventListener('resize',()=>{ setTimeout(kbMode,60); });
 function forceUpdate(){ if(!confirm('清缓存并刷新？只清缓存不动数据')) return; if('caches' in window){ caches.keys().then(ks=>Promise.all(ks.map(k=>caches.delete(k)))).catch(()=>{}); } if('serviceWorker' in navigator){ navigator.serviceWorker.getRegistrations().then(rs=>rs.forEach(r=>r.unregister())).catch(()=>{}); } location.replace(location.pathname+'?f='+Date.now()); }
