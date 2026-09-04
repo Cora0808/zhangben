@@ -190,7 +190,7 @@ nav button .ni{font-size:19px;line-height:1}
    ================================================================ */
 /* ---------- 常量 ---------- */
 const KEY='wb_coach_v1';
-const APP_VER='v4.0.8';
+const APP_VER='v4.1.0';
 const TODAY=()=>{const d=new Date();return d.getFullYear()+'-'+P(d.getMonth()+1)+'-'+P(d.getDate());};
 const P=n=>n<10?'0'+n:''+n;
 const YM=dstr=>String(dstr||'').slice(0,7);
@@ -218,7 +218,23 @@ const CATS=[
   {k:'other',n:'其他',  e:'✨', g:'day'}
 ];
 const CAT_MAP={};CATS.forEach(c=>CAT_MAP[c.k]=c);
-const catInfo=k=>CAT_MAP[k]||{n:'其他',e:'✨',g:'day'};
+function catInfo(k){ if(!k) k='other';
+  const uc=userCats().find(c=>c.k===k);
+  if(uc) return {n:uc.n,e:uc.e||'✨',g:'day',user:1};
+  return CAT_MAP[k]||{n:'其他',e:'✨',g:'day'};
+}
+/* 用户自定义分类 */
+function userCats(){ return ((S&&S.custom&&S.custom.cats)||[]); }
+function findUserCat(k){ return userCats().find(c=>c.k===k); }
+function allCats(){
+  const uc=userCats();
+  const top=uc.filter(c=>c.top), rest=uc.filter(c=>!c.top);
+  const mk=c=>({k:c.k,n:c.n,e:c.e||'✨',g:'day'});
+  const out=top.map(mk).concat(CATS.map(c=>({k:c.k,n:c.n,e:c.e,g:c.g})));
+  rest.forEach(c=>{ if(!CAT_MAP[c.k]) out.push(mk(c)); });
+  return out;
+}
+function catCol(k){ const uc=findUserCat(k); if(uc&&uc.c) return uc.c; return cCol(k); }
 /* 收入来源：全部到账=活钱 */
 const INCS=[
   {k:'salary',n:'工资'},{k:'help',n:'家人接济'},{k:'back',n:'存款转回(家人返我)'},
@@ -243,6 +259,7 @@ function defaults(){
     plans:[],           /* 周期计划：弹性 */
     smart:{},           /* 备注→分类记忆 */
     tmpl:[],            /* 快捷模板(冻结) */
+    custom:{cats:[]},   /* 用户自定义分类 [{k,n,e,c,top}] */
     stateFlags:{},      /* 状态开关，如 gold:'pause' */
     customHol:[], customWork:[],   /* 自定义放假/补班 */
     lastExport:'', lastRemind:'', created:''
@@ -258,7 +275,7 @@ function bootData(){
   const d=load();
   if(!d){ S=defaults(); return; }
   const b=defaults();
-  S=Object.assign(b,d,{recs:Array.isArray(d.recs)?d.recs:[],plans:Array.isArray(d.plans)?d.plans:[],goals:Array.isArray(d.goals)&&d.goals.length?d.goals:b.goals,smart:d.smart||{},tmpl:Array.isArray(d.tmpl)?d.tmpl:[],stateFlags:d.stateFlags||{},customHol:Array.isArray(d.customHol)?d.customHol:[],customWork:Array.isArray(d.customWork)?d.customWork:[]});
+  S=Object.assign(b,d,{recs:Array.isArray(d.recs)?d.recs:[],plans:Array.isArray(d.plans)?d.plans:[],goals:Array.isArray(d.goals)&&d.goals.length?d.goals:b.goals,smart:d.smart||{},tmpl:Array.isArray(d.tmpl)?d.tmpl:[],stateFlags:d.stateFlags||{},customHol:Array.isArray(d.customHol)?d.customHol:[],customWork:Array.isArray(d.customWork)?d.customWork:[],custom:(d.custom&&Array.isArray(d.custom.cats))?d.custom:{cats:[]}});
   S.t0=Object.assign({cash:0,acc:{ylb:0,gold_mv:0},save:{car:0},gold_cost:0}, d.t0||{});
   S.t0.acc=Object.assign({ylb:0,gold_mv:0}, (d.t0&&d.t0.acc)||{});
   S.t0.save=Object.assign({car:0}, (d.t0&&d.t0.save)||{});
@@ -603,9 +620,9 @@ function renderPickArea(){
   const pa=$('pickArea'); if(!pa) return;
   let h='';
   if(REC.mode==='exp'){
-    /* 常用排前：优先智能记忆分类的快捷 chips */
-    const hint=smartGuess(REC.note);
-    h+=CATS.map(c=>'<div class="chip '+(REC.cat===c.k?'on':'')+'" style="'+(REC.cat===c.k?'background:'+cCol(c.k):'')+'" onclick="pickCat(\''+c.k+'\')">'+c.e+''+c.n+'</div>').join('');
+    const list=allCats();
+    h+=list.map(c=>'<div class="chip '+(REC.cat===c.k?'on':'')+'" style="'+(REC.cat===c.k?'background:'+catCol(c.k):'')+'" onclick="pickCat(\''+c.k+'\')">'+c.e+''+c.n+'</div>').join('');
+    h+='<div class="chip" style="opacity:.6" onclick="openCatMgr()">✎ 管理</div>';
     h+='<div style="display:flex;gap:6px;margin-top:8px;align-items:center"><span style="font-size:11px;color:var(--txt3)">钱从谁出：</span>'+
        '<div class="chip '+(REC.payer==='me'?'on':'')+'" style="'+(REC.payer==='me'?'background:var(--cy);color:#04121a;font-weight:700':'')+'" onclick="REC.payer=\'me\';renderPickArea()">我自己</div>'+
        '<div class="chip '+(REC.payer==='obj'?'on':'')+'" style="'+(REC.payer==='obj'?'background:var(--pu);color:#fff;font-weight:700':'')+'" onclick="REC.payer=\'obj\';renderPickArea()">对象亲密付(她付)</div></div>';
@@ -784,7 +801,7 @@ function renderCycle(){
      '<div style="font-size:12px;color:var(--txt3);margin-top:8px">到账 <b style="color:var(--gr)">'+money(inc)+'</b> · 支出 <b style="color:var(--mg)">'+money(exp)+'</b>'+(objs?' · 对象付 <b style="color:var(--pu)">'+money(objs)+'</b>':'')+'</div></div>';
   h+='<div class="card"><div class="c-head"><div class="c-title">SPEND / 花在哪</div></div>';
   if(!sorted.length) h+='<div class="empty">这个周期还没有支出</div>';
-  else sorted.slice(0,6).forEach(k=>{ const v=byCat[k], p=maxV?Math.round(v/maxV*100):0, ci=catInfo(k); h+='<div style="display:flex;align-items:center;gap:8px;margin-bottom:7px"><span style="width:70px;font-size:12px;flex-shrink:0">'+ci.e+' '+ci.n+'</span><div class="bar" style="flex:1"><i style="width:'+p+'%;background:'+cCol(k)+'"></i></div><span style="font-family:var(--mono);font-size:12px">'+money(v)+'</span></div>'; });
+  else sorted.slice(0,6).forEach(k=>{ const v=byCat[k], p=maxV?Math.round(v/maxV*100):0, ci=catInfo(k); h+='<div style="display:flex;align-items:center;gap:8px;margin-bottom:7px"><span style="width:70px;font-size:12px;flex-shrink:0">'+ci.e+' '+ci.n+'</span><div class="bar" style="flex:1"><i style="width:'+p+'%;background:'+catCol(k)+'"></i></div><span style="font-family:var(--mono);font-size:12px">'+money(v)+'</span></div>'; });
   h+='<button class="btn ghost" style="margin-top:10px" onclick="copyDigest()">📤 生成简报发教练</button></div>';
   h+='<div class="c-head" style="margin:12px 2px 2px"><div class="c-title">FLOW / 流水</div><div class="c-sub">'+rows.length+' 笔</div></div>';
   if(!rows.length) h+='<div class="empty">本周期暂无记录</div>';
@@ -930,7 +947,7 @@ function planForm(id){
     '<div class="field"><div class="fl">每月几号</div><input class="inp" id="pl_day" type="number" inputmode="numeric" min="1" max="28" value="'+(cur.day||1)+'"></div>'+
     '<div class="field"><div class="fl">默认金额</div><input class="inp" id="pl_amt" type="number" inputmode="decimal" value="'+cur.amt+'" placeholder="0"></div>'+
     '<div class="field"><div class="fl">类型</div><select class="inp" id="pl_kind">'+kindSel.map(o=>'<option value="'+o.v+'"'+(o.v===curKind?' selected':'')+'>'+o.n+'</option>').join('')+'</select></div>'+
-    '<div class="field"><div class="fl">支出分类（类型选"支出"时）</div><select class="inp" id="pl_cat">'+CATS.map(c=>'<option value="'+c.k+'"'+(cur.cat===c.k?' selected':'')+'>'+c.e+c.n+'</option>').join('')+'</select></div>'+
+    '<div class="field"><div class="fl">支出分类（类型选"支出"时）</div><select class="inp" id="pl_cat">'+allCats().map(c=>'<option value="'+c.k+'"'+(cur.cat===c.k?' selected':'')+'>'+c.e+c.n+'</option>').join('')+'</select></div>'+
     '<label style="display:flex;gap:8px;align-items:center;font-size:13px;color:var(--txt2);margin-bottom:14px"><input type="checkbox" id="pl_flex" '+(cur.flex?'checked':'')+' style="width:15px;height:15px;accent-color:var(--cy)"> 弹性金额（每月到期让我确认实际数）</label>'+
     '<div style="display:flex;gap:9px">'+(p?'<button class="btn mg" style="flex:1" onclick="delPlan(\''+p.id+'\')">删除</button>':'')+
     '<button class="btn ghost" style="flex:1" onclick="closeModal()">取消</button>'+
@@ -964,8 +981,39 @@ function planRowHtml(x){
     '<button class="mini" onclick="planForm(\''+x.id+'\')">✎</button></div></div>';
 }
 /* ---------------- 设置页 ---------------- */
+function catMgrRows(){
+  const list=allCats();
+  return '<div class="c-head"><div class="c-title">CATEGORY / 分类</div><div class="c-sub" style="cursor:pointer" onclick="addUserCat()">＋新增</div></div>'+
+    list.map(c=>{ const isU=!!findUserCat(c.k);
+      return '<div class="row"><div class="ic" style="background:rgba(255,255,255,.05)">'+c.e+'</div>'+
+      '<div class="mid"><div class="t1">'+esc(c.n)+(isU?' <span style="font-size:9px;color:var(--cy)">自定</span>':'')+'</div></div>'+
+      (isU?('<button class="mini" onclick="toggleTopCat(\''+c.k+'\')">'+(findUserCat(c.k).top?'取消置顶':'置顶')+'</button>'+
+            '<button class="mini" onclick="renUserCat(\''+c.k+'\')">改名</button>'+
+            '<button class="mini mg" onclick="delUserCat(\''+c.k+'\')">删</button>')
+           :'<button class="mini" style="opacity:.6" onclick="showToast(\'内置分类可复制改名成自定义\')">内置</button>')+
+      '</div>'; }).join('');
+}
+function renderCatMgr(){ openModal('<div class="mh">分类管理</div>'+catMgrRows()+
+  '<div style="font-size:11px;color:var(--txt3);margin-top:10px">自定义分类会出现在记账页（置顶的排最前）。改名/删除不影响历史流水显示。</div>'); }
+function openCatMgr(){ renderCatMgr(); }
+function addUserCat(){
+  const n=prompt('新分类名称（如：咖啡 / 话费 / 打车）'); if(!n||!n.trim()) return;
+  const e=prompt('图标（可输入一个 emoji，如 ☕ 📱 🚕；留空默认 ✨）')||'✨';
+  if(CAT_MAP[n.trim()]){ showToast('与内置分类同名，换个名','warn'); return; }
+  if(findUserCat(n.trim())){ showToast('已有同名分类','warn'); return; }
+  const k='c'+uid().slice(-8);
+  const PAL=['#00E5FF','#FF2E88','#00FFA3','#FFD60A','#B06BFF','#FF8A3D','#FF4D4D','#8CA3C0'];
+  S.custom.cats.push({k,n:n.trim(),e:e.trim()||'✨',c:PAL[S.custom.cats.length%PAL.length],top:false});
+  save(); renderCatMgr(); showToast('已添加「'+n.trim()+'」','ok');
+}
+function renUserCat(k){ const c=findUserCat(k); if(!c) return; const n=prompt('改名为',c.n); if(n&&n.trim()){ c.n=n.trim(); save(); renderCatMgr(); } }
+function delUserCat(k){ if(!confirm('删除分类「'+findUserCat(k).n+'」？历史记录仍会显示')) return; S.custom.cats=S.custom.cats.filter(x=>x.k!==k); save(); renderCatMgr(); }
+function toggleTopCat(k){ const c=findUserCat(k); if(!c) return; c.top=!c.top; save(); renderCatMgr(); }
+/* ---------------- 设置页 ---------------- */
 function renderSet(){
   let h='';
+  h+='<div class="card"><div class="c-head"><div class="c-title">CATEGORY / 分类</div><div class="c-sub" style="cursor:pointer" onclick="openCatMgr()">＋管理</div></div>'+
+     '<div style="font-size:11px;color:var(--txt3)">记账页分类可自定义：新增自己的常用类（咖啡/话费/打车…）、置顶、改名、删除。点上面进入。</div></div>';
   h+='<div class="card"><div class="c-head"><div class="c-title">PLANS / 每月计划</div><div class="c-sub" style="cursor:pointer" onclick="planForm(null)">＋新增</div></div>';
   h+=(S.plans&&S.plans.length?S.plans.map(planRowHtml).join(''):'<div class="empty">还没有计划项。<br>给妈妈的钱、猫399、黄金定投、余利宝定存，都能设成每月提醒。</div>')+'</div>';
   h+='<div class="card"><div class="c-head"><div class="c-title">PAY / 发薪</div></div>'+
