@@ -190,7 +190,7 @@ nav button .ni{font-size:19px;line-height:1}
    ================================================================ */
 /* ---------- 常量 ---------- */
 const KEY='wb_coach_v1';
-const APP_VER='v4.1.0';
+const APP_VER='v4.1.1';
 const TODAY=()=>{const d=new Date();return d.getFullYear()+'-'+P(d.getMonth()+1)+'-'+P(d.getDate());};
 const P=n=>n<10?'0'+n:''+n;
 const YM=dstr=>String(dstr||'').slice(0,7);
@@ -228,10 +228,17 @@ function userCats(){ return ((S&&S.custom&&S.custom.cats)||[]); }
 function findUserCat(k){ return userCats().find(c=>c.k===k); }
 function allCats(){
   const uc=userCats();
-  const top=uc.filter(c=>c.top), rest=uc.filter(c=>!c.top);
   const mk=c=>({k:c.k,n:c.n,e:c.e||'✨',g:'day'});
-  const out=top.map(mk).concat(CATS.map(c=>({k:c.k,n:c.n,e:c.e,g:c.g})));
-  rest.forEach(c=>{ if(!CAT_MAP[c.k]) out.push(mk(c)); });
+  const ov={}, topK={};
+  uc.forEach(c=>{ if(CAT_MAP[c.k]) ov[c.k]=c; if(c.top) topK[c.k]=1; });
+  const out=[];
+  uc.forEach(c=>{ if(c.top) out.push(mk(c)); });            /* 置顶(含内置改名版)排最前 */
+  CATS.forEach(c=>{                                          /* 内置按原顺序，被覆盖的替换显示 */
+    const o=ov[c.k];
+    if(o){ if(!topK[c.k]) out.push({k:c.k,n:o.n,e:o.e||c.e,g:c.g}); }
+    else out.push({k:c.k,n:c.n,e:c.e,g:c.g});
+  });
+  uc.forEach(c=>{ if(!c.top&&!CAT_MAP[c.k]) out.push(mk(c)); }); /* 普通自定义追加在后 */
   return out;
 }
 function catCol(k){ const uc=findUserCat(k); if(uc&&uc.c) return uc.c; return cCol(k); }
@@ -616,11 +623,14 @@ function renderRec(){
   renderHint();
 }
 function todayInput(){ REC.date=prompt('日期(YYYY-MM-DD)', REC.date||TODAY())||REC.date; }
+/* 分类在分类管理里改动后，若记账面板开着则即时刷新分类 chips */
+function refreshPick(){ try{ if($('sheet')&&$('sheet').classList.contains('on')) renderPickArea(); }catch(e){} }
 function renderPickArea(){
   const pa=$('pickArea'); if(!pa) return;
   let h='';
   if(REC.mode==='exp'){
     const list=allCats();
+    if(!list.some(c=>c.k===REC.cat)) REC.cat=list.some(c=>c.k==='food')?'food':(list[0]?list[0].k:'other');
     h+=list.map(c=>'<div class="chip '+(REC.cat===c.k?'on':'')+'" style="'+(REC.cat===c.k?'background:'+catCol(c.k):'')+'" onclick="pickCat(\''+c.k+'\')">'+c.e+''+c.n+'</div>').join('');
     h+='<div class="chip" style="opacity:.6" onclick="openCatMgr()">✎ 管理</div>';
     h+='<div style="display:flex;gap:6px;margin-top:8px;align-items:center"><span style="font-size:11px;color:var(--txt3)">钱从谁出：</span>'+
@@ -980,40 +990,68 @@ function planRowHtml(x){
     '<button class="mini" onclick="togglePlan(\''+x.id+'\')">'+(x.on?'⏸':'▶')+'</button>'+
     '<button class="mini" onclick="planForm(\''+x.id+'\')">✎</button></div></div>';
 }
-/* ---------------- 设置页 ---------------- */
+/* ---------------- 分类管理 ---------------- */
+function catTag(c){ return findUserCat(c.k)?(CAT_MAP[c.k]?'<span style="font-size:9px;color:var(--cy)">已改</span>':'<span style="font-size:9px;color:var(--cy)">自定</span>'):'<span style="font-size:9px;color:var(--txt3)">内置</span>'; }
 function catMgrRows(){
   const list=allCats();
   return '<div class="c-head"><div class="c-title">CATEGORY / 分类</div><div class="c-sub" style="cursor:pointer" onclick="addUserCat()">＋新增</div></div>'+
     list.map(c=>{ const isU=!!findUserCat(c.k);
       return '<div class="row"><div class="ic" style="background:rgba(255,255,255,.05)">'+c.e+'</div>'+
-      '<div class="mid"><div class="t1">'+esc(c.n)+(isU?' <span style="font-size:9px;color:var(--cy)">自定</span>':'')+'</div></div>'+
+      '<div class="mid"><div class="t1">'+esc(c.n)+' '+catTag(c)+'</div>'+
+      (CAT_MAP[c.k]&&!isU?'':'<div class="t2">'+(CAT_MAP[c.k]?'同名覆盖内置：历史流水自动显示新名':'历史记录随改名同步')+'</div>')+'</div>'+
       (isU?('<button class="mini" onclick="toggleTopCat(\''+c.k+'\')">'+(findUserCat(c.k).top?'取消置顶':'置顶')+'</button>'+
-            '<button class="mini" onclick="renUserCat(\''+c.k+'\')">改名</button>'+
-            '<button class="mini mg" onclick="delUserCat(\''+c.k+'\')">删</button>')
-           :'<button class="mini" style="opacity:.6" onclick="showToast(\'内置分类可复制改名成自定义\')">内置</button>')+
+            '<button class="mini" onclick="editCat(\''+c.k+'\')">改名</button>'+
+            '<button class="mini mg" onclick="delUserCat(\''+c.k+'\')">'+(CAT_MAP[c.k]?'还原':'删')+'</button>')
+           :'<button class="mini" onclick="editCat(\''+c.k+'\')">改名</button>')+
       '</div>'; }).join('');
 }
 function renderCatMgr(){ openModal('<div class="mh">分类管理</div>'+catMgrRows()+
-  '<div style="font-size:11px;color:var(--txt3);margin-top:10px">自定义分类会出现在记账页（置顶的排最前）。改名/删除不影响历史流水显示。</div>'); }
+  '<div style="font-size:11px;color:var(--txt3);margin-top:10px">内置分类也能改名字/图标（改后历史流水同步显示新名）；自定义分类可置顶/改名/删除，删除后其历史显示为「其他」。点遮罩关闭。</div>'); }
 function openCatMgr(){ renderCatMgr(); }
+/* 编辑分类（内置=建同名覆盖；自定义=改名/换图标）。返回 false=取消/无改动 */
+function editCat(k){
+  const base=CAT_MAP[k]?CAT_MAP[k]:null;
+  const ex=findUserCat(k);
+  const oldN=ex?(ex.n||''):(base?base.n:'');
+  const oldE=ex?(ex.e||''):(base?base.e:'');
+  const nm0=prompt('分类名称（历史记录会同步显示新名字）',oldN); if(nm0==null) return;
+  const nm=nm0.trim(); if(!nm){ showToast('名称不能为空','warn'); return; }
+  if(!ex&&!base){ showToast('分类不存在','err'); return; }
+  const e0=prompt('图标（输入一个 emoji，留空保持不变）',oldE||'✨'); if(e0==null) return;
+  const em=(e0&&e0.trim())?e0.trim():oldE;
+  if(ex&&nm===ex.n&&em===(ex.e||'')){ return; }
+  if(allCats().some(x=>x.k!==k&&x.n===nm)){ showToast('已有同名分类（'+nm+'），换个名','warn'); return; }
+  if(ex){ ex.n=nm; ex.e=em; }
+  else S.custom.cats.push({k,n:nm,e:em,top:false});
+  afterCatEdit();
+  showToast('已保存：'+catInfo(k).e+' '+catInfo(k).n,'ok');
+}
 function addUserCat(){
   const n=prompt('新分类名称（如：咖啡 / 话费 / 打车）'); if(!n||!n.trim()) return;
   const e=prompt('图标（可输入一个 emoji，如 ☕ 📱 🚕；留空默认 ✨）')||'✨';
-  if(CAT_MAP[n.trim()]){ showToast('与内置分类同名，换个名','warn'); return; }
-  if(findUserCat(n.trim())){ showToast('已有同名分类','warn'); return; }
+  const nm=n.trim();
+  if(allCats().some(c=>c.n===nm)){ showToast('已有同名分类（'+nm+'）','warn'); return; }
   const k='c'+uid().slice(-8);
   const PAL=['#00E5FF','#FF2E88','#00FFA3','#FFD60A','#B06BFF','#FF8A3D','#FF4D4D','#8CA3C0'];
-  S.custom.cats.push({k,n:n.trim(),e:e.trim()||'✨',c:PAL[S.custom.cats.length%PAL.length],top:false});
-  save(); renderCatMgr(); showToast('已添加「'+n.trim()+'」','ok');
+  S.custom.cats.push({k,n:nm,e:e.trim()||'✨',c:PAL[S.custom.cats.length%PAL.length],top:false});
+  afterCatEdit(); showToast('已添加「'+nm+'」','ok');
 }
-function renUserCat(k){ const c=findUserCat(k); if(!c) return; const n=prompt('改名为',c.n); if(n&&n.trim()){ c.n=n.trim(); save(); renderCatMgr(); } }
-function delUserCat(k){ if(!confirm('删除分类「'+findUserCat(k).n+'」？历史记录仍会显示')) return; S.custom.cats=S.custom.cats.filter(x=>x.k!==k); save(); renderCatMgr(); }
-function toggleTopCat(k){ const c=findUserCat(k); if(!c) return; c.top=!c.top; save(); renderCatMgr(); }
+function delUserCat(k){
+  const c=findUserCat(k); if(!c) return;
+  const isB=!!CAT_MAP[k];
+  if(!confirm(isB?('把「'+c.n+'」还原成内置默认「'+CAT_MAP[k].n+'」？'):('删除分类「'+c.n+'」？其历史记录将显示为「其他」'))) return;
+  S.custom.cats=S.custom.cats.filter(x=>x.k!==k);
+  if(typeof REC!=='undefined'&&REC.cat===k) REC.cat='food';
+  afterCatEdit();
+  showToast(isB?'已还原默认':'已删除','ok');
+}
+function toggleTopCat(k){ const c=findUserCat(k); if(!c) return; c.top=!c.top; afterCatEdit(); }
+function afterCatEdit(){ save(); renderCatMgr(); refreshPick(); }
 /* ---------------- 设置页 ---------------- */
 function renderSet(){
   let h='';
   h+='<div class="card"><div class="c-head"><div class="c-title">CATEGORY / 分类</div><div class="c-sub" style="cursor:pointer" onclick="openCatMgr()">＋管理</div></div>'+
-     '<div style="font-size:11px;color:var(--txt3)">记账页分类可自定义：新增自己的常用类（咖啡/话费/打车…）、置顶、改名、删除。点上面进入。</div></div>';
+     '<div style="font-size:11px;color:var(--txt3)">分类都能自定义：内置的可以直接改名/换图标（改后历史同步显示新名），还能新增、置顶、删除。点上面进入管理。</div></div>';
   h+='<div class="card"><div class="c-head"><div class="c-title">PLANS / 每月计划</div><div class="c-sub" style="cursor:pointer" onclick="planForm(null)">＋新增</div></div>';
   h+=(S.plans&&S.plans.length?S.plans.map(planRowHtml).join(''):'<div class="empty">还没有计划项。<br>给妈妈的钱、猫399、黄金定投、余利宝定存，都能设成每月提醒。</div>')+'</div>';
   h+='<div class="card"><div class="c-head"><div class="c-title">PAY / 发薪</div></div>'+
