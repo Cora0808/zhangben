@@ -190,7 +190,7 @@ nav button .ni{font-size:19px;line-height:1}
    ================================================================ */
 /* ---------- 常量 ---------- */
 const KEY='wb_coach_v1';
-const APP_VER='v4.0.6';
+const APP_VER='v4.0.7';
 const TODAY=()=>{const d=new Date();return d.getFullYear()+'-'+P(d.getMonth()+1)+'-'+P(d.getDate());};
 const P=n=>n<10?'0'+n:''+n;
 const YM=dstr=>String(dstr||'').slice(0,7);
@@ -365,10 +365,10 @@ function paydayIn(m){ /* 当月发薪日字符串 */
   const base=m+'-'+P(day);
   return workdayNear(base,-1);
 }
-function nextPayday(){ /* 从今天往后的下一个发薪日 */
+function nextPayday(){ /* 从今天往后的下一个发薪日（今天若发薪=已进入新周期→用下月） */
   const ym=TODAY().slice(0,7);
   const thisP=paydayIn(ym);
-  if(cmpD(TODAY(),thisP)<=0) return thisP;
+  if(cmpD(TODAY(),thisP)<0) return thisP;
   return paydayIn(addMonth(ym,1));
 }
 function lastPayday(){ /* 今天之前最近一次发薪（含今天=今天） */
