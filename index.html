@@ -498,7 +498,9 @@ function renderOnboard(){
   const s=steps[obStep];
   let body='';
   body+='<h2>'+s.t+'</h2><div class="sub">'+s.sub+'</div>';
-  if(obStep===0){}
+  if(obStep===0){
+    body+='<div style="margin:18px 0;padding:14px;border:1px dashed var(--line2);border-radius:12px;background:var(--panel2)"><div style="font-size:13px;color:var(--txt2);margin-bottom:8px">已经有初始化数据？（Hermes 给你生成过导入包）</div><button class="btn ghost" style="background:rgba(0,229,255,.08);border-color:rgba(0,229,255,.4);color:var(--cy)" onclick="openInitImport()">📥 粘贴导入初始化包</button></div>';
+  }
   else if(obStep===1){ body+=obInput('obCash','活钱金额',S.t0.cash); }
   else if(obStep===2){
     body+='<div class="field"><div class="fl">余利宝余额</div><input class="inp ob-in" data-k="ylb" type="number" inputmode="decimal" value="'+S.t0.acc.ylb+'"></div>';
@@ -537,6 +539,13 @@ function obNext(){
 }
 function obBack(){ if(obStep>0){ obStep--; renderOnboard(); } }
 function editOnboard(){ obStep=1; renderOnboard(); }
+function openInitImport(){ openModal('<div class="mh">导入初始化包</div><textarea class="inp" id="initTxt" rows="7" placeholder="粘贴 Hermes 给你的初始化 JSON" style="font-size:9px;font-family:var(--mono)"></textarea><div style="display:flex;gap:9px;margin-top:12px"><button class="btn ghost" style="flex:1" onclick="closeModal()">取消</button><button class="btn cy" style="flex:1" onclick="doInitImport()">导入并开始</button></div>'); }
+function doInitImport(){
+  const v=$('initTxt').value; if(!v||!v.trim()){ showToast('粘贴内容为空','warn'); return; }
+  try{ const d=JSON.parse(v.trim()); if(!d||d.v!==4){ showToast('不是 v4 初始化包','err'); return; }
+    S=d; S.onboard=true; save(); $('onboard').style.display='none'; closeModal(); render(); showToast('初始化完成 🎉','ok');
+  }catch(e){ showToast('解析失败：'+e.message,'err'); }
+}
 
 /* ================= 记一笔 ================= */
 const REC={mode:'exp', amt:'', cat:'food', src:'salary', payer:'me', mvDir:'in', mvTo:'ylb', goal:'car', note:'', date:''};
