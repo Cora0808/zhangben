@@ -190,7 +190,7 @@ nav button .ni{font-size:19px;line-height:1}
    ================================================================ */
 /* ---------- 常量 ---------- */
 const KEY='wb_coach_v1';
-const APP_VER='v4.0.2';
+const APP_VER='v4.0.3';
 const TODAY=()=>{const d=new Date();return d.getFullYear()+'-'+P(d.getMonth()+1)+'-'+P(d.getDate());};
 const P=n=>n<10?'0'+n:''+n;
 const YM=dstr=>String(dstr||'').slice(0,7);
@@ -502,7 +502,11 @@ function renderOnboard(){
   let body='';
   body+='<h2>'+s.t+'</h2><div class="sub">'+s.sub+'</div>';
   if(obStep===0){
-    body+='<div style="margin:18px 0;padding:14px;border:1px dashed var(--line2);border-radius:12px;background:var(--panel2)"><div style="font-size:13px;color:var(--txt2);margin-bottom:8px">已经有初始化数据？（Hermes 给你生成过导入包）</div><button class="btn ghost" style="background:rgba(0,229,255,.08);border-color:rgba(0,229,255,.4);color:var(--cy)" onclick="openInitImport()">📥 粘贴导入初始化包</button></div>';
+    if(window._obImp){
+      body+='<div style="margin:14px 0"><div class="fl">粘贴 Hermes 给你的初始化 JSON</div><textarea id="initTxt" rows="7" style="width:100%;background:var(--bg2);border:1px solid var(--line2);border-radius:10px;color:var(--txt);padding:9px;font-size:9px;font-family:var(--mono);box-sizing:border-box" placeholder="粘贴 JSON…"></textarea><button class="btn cy" style="margin-top:10px" onclick="doInitImport()">导入并开始使用</button><div style="text-align:center;margin-top:10px"><span style="color:var(--txt3);font-size:12px" onclick="window._obImp=false;renderOnboard()">← 返回手动填写</span></div></div>';
+    }else{
+      body+='<div style="margin:18px 0;padding:14px;border:1px dashed var(--line2);border-radius:12px;background:var(--panel2)"><div style="font-size:13px;color:var(--txt2);margin-bottom:8px">已经有初始化数据？（Hermes 给你生成过导入包）</div><button class="btn ghost" style="background:rgba(0,229,255,.08);border-color:rgba(0,229,255,.4);color:var(--cy)" onclick="window._obImp=true;renderOnboard()">📥 粘贴导入初始化包</button></div>';
+    }
   }
   else if(obStep===1){ body+=obInput('obCash','活钱金额',S.t0.cash); }
   else if(obStep===2){
