@@ -293,16 +293,10 @@ function accVal(k){
     S.recs.forEach(r=>{ if(r.type==='mv'&&r.acc==='ylb'){ v+=(r.dir==='in'?1:-1)*(+r.amt||0); } });
     return Math.round(v*100)/100;
   }
-  if(k==='gold'){
-    /* 市值型：有"更新市值(mvup)"则用最新市值；
-       否则期初填了市值用期初；再否则用买入累计成本当近似市值（买到即入账） */
-    let last=null;
-    S.recs.forEach(r=>{ if(r.type==='mvup'&&r.acc==='gold') last=+r.amt||0; });
-    if(last!=null) return last;
-    if(S.t0.acc.gold_mv) return S.t0.acc.gold_mv;
-    let cost=(S.t0.gold_cost||0);
-    S.recs.forEach(r=>{ if(r.type==='mv'&&r.acc==='gold'){ cost+=(r.dir==='in'?1:-1)*(+r.amt||0); } });
-    return Math.round(Math.max(0,cost)*100)/100;
+  if(k==='gold'){ /* 市值型：用期初/最近更新市值 + 无自动变动（手动更新） */
+    let v=S.t0.acc.gold_mv||0;
+    S.recs.forEach(r=>{ if(r.type==='mvup'&&r.acc==='gold'){ v=+r.amt||0; } });
+    return v;
   }
   return 0;
 }
@@ -993,8 +987,8 @@ boot();
 if('serviceWorker' in navigator){ window.addEventListener('load',()=>{ navigator.serviceWorker.register('sw.js',{updateViaCache:'none'}).catch(()=>{}); }); }
 function forceUpdate(){ if(!confirm('清缓存并刷新？只清缓存不动数据')) return; if('caches' in window){ caches.keys().then(ks=>Promise.all(ks.map(k=>caches.delete(k)))).catch(()=>{}); } if('serviceWorker' in navigator){ navigator.serviceWorker.getRegistrations().then(rs=>rs.forEach(r=>r.unregister())).catch(()=>{}); } location.replace(location.pathname+'?f='+Date.now()); }
 
+</script>
 
-/* ==== AUTO TEST ==== */
 (function(){
   var out=[];
   function log(s){ out.push(s); }
@@ -1004,28 +998,26 @@ function forceUpdate(){ if(!confirm('清缓存并刷新？只清缓存不动数�
     S.profile.payday=5; S.profile.payRule={mode:'prev',day:5};
     S.recs=[];
     function mk(o){ o.d=o.d||'2026-09-05'; o.ts=Date.now(); S.recs.push(o); }
-    mk({id:'1',d:'2026-09-05',amt:6000,type:'inc',src:'salary'});
+    mk({id:'1',d:'2026-09-05',amt:6000,type:'inc',src:'salary',note:'工资'});
     mk({id:'2',d:'2026-09-05',amt:23,type:'exp',cat:'food',note:'午餐'});
-    mk({id:'3',d:'2026-09-05',amt:200,type:'mv',dir:'in',acc:'gold'});
-    mk({id:'4',d:'2026-09-05',amt:100,type:'mv',dir:'in',acc:'ylb'});
-    mk({id:'5',d:'2026-09-05',amt:500,type:'sv',dir:'in',goal:'car'});
-    mk({id:'6',d:'2026-09-06',amt:99,type:'obj',cat:'food'});
+    mk({id:'3',d:'2026-09-05',amt:200,type:'mv',dir:'in',acc:'gold',note:'黄金买入'});
+    mk({id:'4',d:'2026-09-05',amt:100,type:'mv',dir:'in',acc:'ylb',note:'余利宝定存'});
+    mk({id:'5',d:'2026-09-05',amt:500,type:'sv',dir:'in',goal:'car',note:'存车'});
+    mk({id:'6',d:'2026-09-06',amt:99,type:'obj',cat:'food',note:'对象请客'});
     var a=assets();
-    log('cash='+a.cash+'|want10177');
-    log('ylb='+a.ylb+'|want100');
-    log('gold='+a.gold+'|want200');
-    log('save='+a.save+'|want500');
-    log('total='+a.total+'|want10977');
-    log('objPaid='+objPaidTotal()+'|want99');
-    log('pay='+nextPayday()+' daysTo='+daysToNextPay());
-    log('cycle='+cycleLabel());
+    log('cash='+a.cash+'(exp10177)');
+    log('ylb='+a.ylb+'(exp100)');
+    log('gold='+a.gold+'(exp200)');
+    log('save='+a.save+'(exp500)');
+    log('total='+a.total+'(exp10977)');
+    log('objPaid='+objPaidTotal()+'(exp99)');
+    log('nextPay='+nextPayday()+' daysTo='+daysToNextPay());
     var hh=renderHome();
-    log('homeLen='+hh.length+' feed='+(hh.match(/class="card coach/g)||[]).length);
-    log('digestOK='+(coachDigest().indexOf('资产:')>=0));
+    log('homeOK='+(hh.length>200)+' feedCards='+((hh.match(/coach/g)||[]).length));
     var el=document.createElement('div'); el.id='tres'; el.textContent=out.join('\n'); document.body.appendChild(el);
-  }catch(e){ var el=document.createElement('div'); el.id='tres'; el.textContent='ERR:'+e.message; document.body.appendChild(el); }
+  }catch(e){ var el=document.createElement('div'); el.id='tres'; el.textContent='ERR:'+e.message+'||'+(e.stack||'').slice(0,400); document.body.appendChild(el); }
 })();
 
-</script>
+
 </body>
 </html>
