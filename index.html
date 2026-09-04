@@ -190,7 +190,7 @@ nav button .ni{font-size:19px;line-height:1}
    ================================================================ */
 /* ---------- 常量 ---------- */
 const KEY='wb_coach_v1';
-const APP_VER='v4.0.5';
+const APP_VER='v4.0.6';
 const TODAY=()=>{const d=new Date();return d.getFullYear()+'-'+P(d.getMonth()+1)+'-'+P(d.getDate());};
 const P=n=>n<10?'0'+n:''+n;
 const YM=dstr=>String(dstr||'').slice(0,7);
@@ -1033,39 +1033,6 @@ function boot(){
 boot();
 if('serviceWorker' in navigator){ window.addEventListener('load',()=>{ navigator.serviceWorker.register('sw.js',{updateViaCache:'none'}).catch(()=>{}); }); }
 function forceUpdate(){ if(!confirm('清缓存并刷新？只清缓存不动数据')) return; if('caches' in window){ caches.keys().then(ks=>Promise.all(ks.map(k=>caches.delete(k)))).catch(()=>{}); } if('serviceWorker' in navigator){ navigator.serviceWorker.getRegistrations().then(rs=>rs.forEach(r=>r.unregister())).catch(()=>{}); } location.replace(location.pathname+'?f='+Date.now()); }
-
-
-/* ==== AUTO TEST ==== */
-(function(){
-  var out=[];
-  function log(s){ out.push(s); }
-  try{
-    S.onboard=true;
-    S.t0.cash=5000; S.t0.acc={ylb:0,gold_mv:0}; S.t0.save={car:0}; S.t0.gold_cost=0;
-    S.profile.payday=5; S.profile.payRule={mode:'prev',day:5};
-    S.recs=[];
-    function mk(o){ o.d=o.d||'2026-09-05'; o.ts=Date.now(); S.recs.push(o); }
-    mk({id:'1',d:'2026-09-05',amt:6000,type:'inc',src:'salary'});
-    mk({id:'2',d:'2026-09-05',amt:23,type:'exp',cat:'food',note:'午餐'});
-    mk({id:'3',d:'2026-09-05',amt:200,type:'mv',dir:'in',acc:'gold'});
-    mk({id:'4',d:'2026-09-05',amt:100,type:'mv',dir:'in',acc:'ylb'});
-    mk({id:'5',d:'2026-09-05',amt:500,type:'sv',dir:'in',goal:'car'});
-    mk({id:'6',d:'2026-09-06',amt:99,type:'obj',cat:'food'});
-    var a=assets();
-    log('cash='+a.cash+'|want10177');
-    log('ylb='+a.ylb+'|want100');
-    log('gold='+a.gold+'|want200');
-    log('save='+a.save+'|want500');
-    log('total='+a.total+'|want10977');
-    log('objPaid='+objPaidTotal()+'|want99');
-    log('pay='+nextPayday()+' daysTo='+daysToNextPay());
-    log('cycle='+cycleLabel());
-    var hh=renderHome();
-    log('homeLen='+hh.length+' feed='+(hh.match(/class="card coach/g)||[]).length);
-    log('digestOK='+(coachDigest().indexOf('资产:')>=0));
-    var el=document.createElement('div'); el.id='tres'; el.textContent=out.join('\n'); document.body.appendChild(el);
-  }catch(e){ var el=document.createElement('div'); el.id='tres'; el.textContent='ERR:'+e.message; document.body.appendChild(el); }
-})();
 
 </script>
 </body>
