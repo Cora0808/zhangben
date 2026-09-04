@@ -82,7 +82,7 @@ main::-webkit-scrollbar{display:none}
 .row .amt.mg{color:var(--mg)}
 
 /* 记账 sheet */
-.sheet{position:fixed;left:0;right:0;bottom:0;z-index:60;background:var(--bg2);border-top:1px solid var(--line2);border-radius:18px 18px 0 0;padding:14px 14px calc(14px + var(--safe-b));transform:translateY(105%);transition:transform .22s ease;max-height:88vh;overflow-y:auto}
+.sheet{position:fixed;left:0;right:0;bottom:0;z-index:68;background:var(--bg2);border-top:1px solid var(--line2);border-radius:18px 18px 0 0;padding:14px 14px calc(14px + var(--safe-b));transform:translateY(105%);transition:transform .22s ease;max-height:88vh;overflow-y:auto}
 .sheet.on{transform:none}
 .amt-disp{display:flex;align-items:center;justify-content:center;gap:6px;font-family:var(--mono);padding:14px 0 10px}
 .amt-disp .cur{color:var(--txt3);font-size:20px}
@@ -190,7 +190,7 @@ nav button .ni{font-size:19px;line-height:1}
    ================================================================ */
 /* ---------- 常量 ---------- */
 const KEY='wb_coach_v1';
-const APP_VER='v4.0.7';
+const APP_VER='v4.0.8';
 const TODAY=()=>{const d=new Date();return d.getFullYear()+'-'+P(d.getMonth()+1)+'-'+P(d.getDate());};
 const P=n=>n<10?'0'+n:''+n;
 const YM=dstr=>String(dstr||'').slice(0,7);
