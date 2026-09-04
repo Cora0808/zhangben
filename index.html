@@ -101,6 +101,7 @@ nav{position:fixed;left:0;right:0;bottom:0;z-index:50;display:flex;background:rg
 nav button{flex:1;background:none;border:none;color:var(--txt3);font-size:10px;padding:7px 0 8px;display:flex;flex-direction:column;gap:2px;align-items:center}
 nav button.on{color:var(--cy)}
 nav button .ni{font-size:19px;line-height:1}
+.hud .v.or{color:var(--or)}
 .fab{position:fixed;right:16px;bottom:calc(74px + var(--safe-b));z-index:40;width:54px;height:54px;border-radius:50%;border:none;background:var(--cy);color:#04121a;font-size:28px;font-weight:700;box-shadow:0 6px 24px rgba(0,229,255,.35)}
 .fab:active{transform:scale(.94)}
 
@@ -158,6 +159,7 @@ nav button .ni{font-size:19px;line-height:1}
     <button data-go="home" class="on"><span class="ni">🏠</span>首页</button>
     <button data-go="cycle"><span class="ni">📅</span>周期</button>
     <button data-go="invest"><span class="ni">📈</span>理财</button>
+    <button data-go="fund"><span class="ni">🗂</span>专项</button>
     <button data-go="goal"><span class="ni">🎯</span>目标</button>
     <button data-go="set"><span class="ni">⚙️</span>设置</button>
   </nav>
@@ -190,7 +192,7 @@ nav button .ni{font-size:19px;line-height:1}
    ================================================================ */
 /* ---------- 常量 ---------- */
 const KEY='wb_coach_v1';
-const APP_VER='v4.1.1';
+const APP_VER='v4.2.0';
 const TODAY=()=>{const d=new Date();return d.getFullYear()+'-'+P(d.getMonth()+1)+'-'+P(d.getDate());};
 const P=n=>n<10?'0'+n:''+n;
 const YM=dstr=>String(dstr||'').slice(0,7);
@@ -267,6 +269,7 @@ function defaults(){
     smart:{},           /* 备注→分类记忆 */
     tmpl:[],            /* 快捷模板(冻结) */
     custom:{cats:[]},   /* 用户自定义分类 [{k,n,e,c,top}] */
+    funds:[],           /* 专项基金（锅）：为花而留的钱 {id,name,target,herIn,created} */
     stateFlags:{},      /* 状态开关，如 gold:'pause' */
     customHol:[], customWork:[],   /* 自定义放假/补班 */
     lastExport:'', lastRemind:'', created:''
@@ -282,7 +285,7 @@ function bootData(){
   const d=load();
   if(!d){ S=defaults(); return; }
   const b=defaults();
-  S=Object.assign(b,d,{recs:Array.isArray(d.recs)?d.recs:[],plans:Array.isArray(d.plans)?d.plans:[],goals:Array.isArray(d.goals)&&d.goals.length?d.goals:b.goals,smart:d.smart||{},tmpl:Array.isArray(d.tmpl)?d.tmpl:[],stateFlags:d.stateFlags||{},customHol:Array.isArray(d.customHol)?d.customHol:[],customWork:Array.isArray(d.customWork)?d.customWork:[],custom:(d.custom&&Array.isArray(d.custom.cats))?d.custom:{cats:[]}});
+  S=Object.assign(b,d,{recs:Array.isArray(d.recs)?d.recs:[],plans:Array.isArray(d.plans)?d.plans:[],goals:Array.isArray(d.goals)&&d.goals.length?d.goals:b.goals,smart:d.smart||{},tmpl:Array.isArray(d.tmpl)?d.tmpl:[],stateFlags:d.stateFlags||{},customHol:Array.isArray(d.customHol)?d.customHol:[],customWork:Array.isArray(d.customWork)?d.customWork:[],custom:(d.custom&&Array.isArray(d.custom.cats))?d.custom:{cats:[]},funds:Array.isArray(d.funds)?d.funds:[]});
   S.t0=Object.assign({cash:0,acc:{ylb:0,gold_mv:0},save:{car:0},gold_cost:0}, d.t0||{});
   S.t0.acc=Object.assign({ylb:0,gold_mv:0}, (d.t0&&d.t0.acc)||{});
   S.t0.save=Object.assign({car:0}, (d.t0&&d.t0.save)||{});
@@ -303,10 +306,11 @@ function bootData(){
 function cashNow(){
   let c=S.t0.cash||0;
   S.recs.forEach(r=>{
-    if(r.type==='exp') c-=+r.amt||0;
+    if(r.type==='exp'){ if(!r.srcFund) c-=+r.amt||0; }        /* 专项花销早已拨出，不再扣活钱 */
     else if(r.type==='inc') c+=+r.amt||0;
     else if(r.type==='mv'){ if(r.dir==='in') c-=+r.amt||0; else c+=+r.amt||0; }
     else if(r.type==='sv'){ if(r.dir==='in') c-=+r.amt||0; else c+=+r.amt||0; }
+    else if(r.type==='fd'){ if(r.dir==='in') c-=+r.amt||0; else if(r.dir==='out') c+=+r.amt||0; } /* xf 基金间结转不动活钱 */
   });
   return Math.round(c*100)/100;
 }
@@ -339,11 +343,43 @@ function saveVal(k){
   S.recs.forEach(r=>{ if(r.type==='sv'&&r.goal===k){ v+=(r.dir==='in'?1:-1)*(+r.amt||0); } });
   return Math.round(v*100)/100;
 }
+/* ================= 专项基金（锅）：为花而留的钱，非储蓄 =================
+ * rec: fd  {type:'fd', dir:'in'|'out'|'xf', fund:id, to?:id}  放入/退回走活钱；xf 基金间结转
+ *       exp {type:'exp', srcFund:id}                            花销从锅出（不扣活钱）
+ * 口径：拨出不减净资产；花销才算消费；退回=钱回活钱可再花 */
+const r2=n=>Math.round(n*100)/100;
+const amtOf=r=>+r.amt||0;
+function funds(){ return (S&&Array.isArray(S.funds))?S.funds.filter(f=>!f.dead):[]; }
+function fundOf(id){ const all=(S&&Array.isArray(S.funds))?S.funds:[]; return all.find(f=>f.id===id); }
+function fundName(id){ const f=fundOf(id); return f?f.name:(id||''); }
+function fundBal(id){ /* 锅底=我放入−退回−结转出+结转入−已花 */
+  let b=0;
+  S.recs.forEach(r=>{
+    if(r.type==='fd'&&r.fund===id){ if(r.dir==='in') b+=amtOf(r); else if(r.dir==='out') b-=amtOf(r); else if(r.dir==='xf') b-=amtOf(r); }
+    else if(r.type==='fd'&&r.dir==='xf'&&r.to===id) b+=amtOf(r);
+    else if(r.type==='exp'&&r.srcFund===id) b-=amtOf(r);
+  });
+  return r2(b);
+}
+function fundPutIn(id){ /* 累计我放入 */
+  return r2(S.recs.filter(r=>r.type==='fd'&&r.fund===id&&r.dir==='in').reduce((s,r)=>s+amtOf(r),0));
+}
+function fundSpent(id){ /* 累计从锅花销 */
+  return r2(S.recs.filter(r=>r.type==='exp'&&r.srcFund===id).reduce((s,r)=>s+amtOf(r),0));
+}
+function fundRecs(id){
+  return S.recs.filter(r=>(r.type==='fd'&&(r.fund===id||(r.dir==='xf'&&r.to===id)))||(r.type==='exp'&&r.srcFund===id))
+    .slice().sort((x,y)=>cmpD(y.d,x.d)||(y.ts||0)-(x.ts||0));
+}
+function fundsTotal(){ return r2(funds().reduce((s,f)=>s+fundBal(f.id),0)); }
+/* 本周期内从专项花销的合计（单列展示用） */
+function fundsSpentIn(arr){ return r2(arr.filter(r=>r.type==='exp'&&r.srcFund).reduce((s,r)=>s+amtOf(r),0)); }
 function assets(){
   const cash=cashNow(), ylb=accVal('ylb'), gold=accVal('gold');
   let save=0; Object.keys(S.t0.save||{}).forEach(k=>{ const sv=saveVal(k); if(sv>0) save+=sv; });
   S.recs.forEach(r=>{ if(r.type==='sv'&&!S.t0.save[r.goal]&&r.dir==='out') save=Math.max(0,save-(+r.amt||0)); });
-  return {cash,ylb,gold,save,total:Math.round((cash+ylb+gold+save)*100)/100};
+  const fnd=fundsTotal();
+  return {cash,ylb,gold,save,funds:fnd,total:Math.round((cash+ylb+gold+save+fnd)*100)/100};
 }
 /* 对象付累计（不扣我钱，但统计她替我付了多少） */
 function objPaidTotal(){
@@ -353,8 +389,8 @@ function objPaidTotal(){
 function periodIn(recs){
   return Math.round(recs.filter(r=>r.type==='inc').reduce((s,r)=>s+(+r.amt||0),0)*100)/100;
 }
-function periodSpent(recs){ /* 我自己出的消费 + 给对象 + 转出? 转出不算花——只算支出类 */
-  return Math.round(recs.filter(r=>r.type==='exp'||r.type==='obj'?false:false).length?0:recs.filter(r=>r.type==='exp').reduce((s,r)=>s+(+r.amt||0),0)*100)/100;
+function periodSpent(recs){ /* 我自己日常的消费（专项花销不算，钱是过去拨的） */
+  return Math.round(recs.filter(r=>r.type==='exp'&&!r.srcFund).reduce((s,r)=>s+(+r.amt||0),0)*100)/100;
 }
 
 /* ================================================================
@@ -422,7 +458,7 @@ function smartLearn(note,c){ note=String(note||'').trim(); if(!note||!c) return;
 function topTpls(){
   const cut=addDateStr(TODAY(),-60), map={};
   S.recs.forEach(r=>{
-    if(r.type!=='exp'||r.d<cut) return;
+    if(r.type!=='exp'||r.srcFund||r.d<cut) return;
     const note=String(r.note||'').trim()||catInfo(r.cat).n;
     const k=r.cat+'|'+note+'|'+Math.round(+r.amt||0);
     if(!map[k]) map[k]={cat:r.cat,note,amt:Math.round(+r.amt||0),hits:0,ts:r.ts||0};
@@ -451,12 +487,21 @@ function coachDigest(){
   const lines=[];
   lines.push('📋 资金简报 '+TODAY());
   lines.push('周期 '+cycleLabel()+' · 距下次发薪 '+daysToNextPay()+' 天');
-  lines.push('资产: 活钱 ¥'+fmt(a.cash)+' · 余利宝 ¥'+fmt(a.ylb)+' · 黄金 ¥'+fmt(a.gold)+' · 代存 ¥'+fmt(a.save)+' · 合计 ¥'+fmt(a.total));
+  lines.push('资产: 活钱 ¥'+fmt(a.cash)+' · 余利宝 ¥'+fmt(a.ylb)+' · 黄金 ¥'+fmt(a.gold)+' · 代存 ¥'+fmt(a.save)+' · 专项 ¥'+fmt(a.funds)+' · 合计 ¥'+fmt(a.total));
   lines.push('本周期: 到账 ¥'+fmt(inc)+' · 支出 ¥'+fmt(exp)+' · 日均可花 '+(cashPer==null?'—':'¥'+fmt(cashPer)));
   const oP=objPaidTotal(); if(oP>0) lines.push('对方代付(亲密付) 累计 ¥'+fmt(oP));
   S.goals.forEach(g=>{ const v=saveVal(g.id); if(g.id==='car'){ if(v>0||S.t0.save.car>0) lines.push('目标「'+g.name+'」 '+fmt(v)+' / '+fmt(g.target||0)); } });
   const pd=plansDue(); const pend=pd.filter(x=>x.due||x.done);
   if(pend.length) lines.push('计划: '+pend.map(x=>x.done?'✔':'◌')+pend.map(x=>x.p.name+(x.done?'(已记)':'待记')).join('、'));
+  /* 专项基金概况（为花而留的锅） */
+  funds().forEach(f=>{
+    const put=fundPutIn(f.id), sp=fundSpent(f.id), bal=fundBal(f.id);
+    if(put>0||sp>0||f.herIn>0||bal!==0){
+      let s='专项「'+f.name+'」: 我放入 ¥'+fmt(put)+' · 已花 ¥'+fmt(sp)+' · 锅底 ¥'+fmt(bal);
+      if(f.herIn>0) s+=' · 她放入 ¥'+fmt(f.herIn);
+      lines.push(s);
+    }
+  });
   /* 状态开关注释 */
   Object.keys(S.stateFlags||{}).forEach(k=>{ if(k==='gold'&&S.stateFlags[k]) lines.push('状态: 黄金定投暂停中(观望)'); });
   return lines.join('\n');
@@ -508,6 +553,7 @@ function showToast(msg,type){
 function vibrate(ms){ try{ if(navigator.vibrate) navigator.vibrate(ms||25); }catch(e){} }
 /* ---------- 导航 ---------- */
 function go(tab){
+  if(tab===curTab&&tab==='fund'&&fundOpen) fundOpen=null;   /* 再点专项=回列表 */
   curTab=tab;
   document.querySelectorAll('#nav button').forEach(b=>b.classList.toggle('on',b.dataset.go===tab));
   render();
@@ -519,6 +565,7 @@ function render(){
   else if(curTab==='cycle') v.innerHTML=renderCycle();
   else if(curTab==='invest') v.innerHTML=renderInvest();
   else if(curTab==='goal') v.innerHTML=renderGoal();
+  else if(curTab==='fund') v.innerHTML=renderFund();
   else if(curTab==='set') v.innerHTML=renderSet();
   bindViewActions();
 }
@@ -596,7 +643,7 @@ function doInitImport(){
 }
 
 /* ================= 记一笔 ================= */
-const REC={mode:'exp', amt:'', cat:'food', src:'salary', payer:'me', mvDir:'in', mvTo:'ylb', goal:'car', note:'', date:''};
+const REC={mode:'exp', amt:'', cat:'food', src:'salary', payer:'me', srcFund:'', mvDir:'in', mvTo:'ylb', goal:'car', note:'', date:''};
 function openRecord(mode){ REC.mode=mode||'exp'; REC.amt=''; REC.note=''; REC.date=TODAY(); openSheet(); renderRec(); }
 function setRecMode(m){ REC.mode=m; document.querySelectorAll('#segMode button').forEach(b=>b.classList.toggle('on',b.dataset.m===m)); renderRec(); }
 function padKey(k){ REC.amt=(REC.amt+k); if(REC.amt.indexOf('.')>=0&&REC.amt.split('.')[1].length>2) REC.amt=REC.amt.slice(0,-1); if(REC.amt.length>1&&REC.amt[0]==='0'&&REC.amt[1]!=='.') REC.amt=REC.amt.slice(1); }
@@ -625,6 +672,11 @@ function renderRec(){
 function todayInput(){ REC.date=prompt('日期(YYYY-MM-DD)', REC.date||TODAY())||REC.date; }
 /* 分类在分类管理里改动后，若记账面板开着则即时刷新分类 chips */
 function refreshPick(){ try{ if($('sheet')&&$('sheet').classList.contains('on')) renderPickArea(); }catch(e){} }
+function setRecSrc(v){ /* 支出：钱从哪出（活钱/某专项基金/对象付） */
+  if(v==='obj'){ REC.payer='obj'; REC.srcFund=''; }
+  else{ REC.payer='me'; REC.srcFund=(v==='cash')?'':v.slice(2); }
+  renderPickArea();
+}
 function renderPickArea(){
   const pa=$('pickArea'); if(!pa) return;
   let h='';
@@ -633,9 +685,15 @@ function renderPickArea(){
     if(!list.some(c=>c.k===REC.cat)) REC.cat=list.some(c=>c.k==='food')?'food':(list[0]?list[0].k:'other');
     h+=list.map(c=>'<div class="chip '+(REC.cat===c.k?'on':'')+'" style="'+(REC.cat===c.k?'background:'+catCol(c.k):'')+'" onclick="pickCat(\''+c.k+'\')">'+c.e+''+c.n+'</div>').join('');
     h+='<div class="chip" style="opacity:.6" onclick="openCatMgr()">✎ 管理</div>';
-    h+='<div style="display:flex;gap:6px;margin-top:8px;align-items:center"><span style="font-size:11px;color:var(--txt3)">钱从谁出：</span>'+
-       '<div class="chip '+(REC.payer==='me'?'on':'')+'" style="'+(REC.payer==='me'?'background:var(--cy);color:#04121a;font-weight:700':'')+'" onclick="REC.payer=\'me\';renderPickArea()">我自己</div>'+
-       '<div class="chip '+(REC.payer==='obj'?'on':'')+'" style="'+(REC.payer==='obj'?'background:var(--pu);color:#fff;font-weight:700':'')+'" onclick="REC.payer=\'obj\';renderPickArea()">对象亲密付(她付)</div></div>';
+    /* 钱从哪出：活钱 / 专项基金 / 她付 */
+    const curSrc=REC.payer==='obj'?'obj':(REC.srcFund?('f:'+REC.srcFund):'cash');
+    const srcs=[{v:'cash',n:'活钱',st:'background:var(--gr);color:#04121a;font-weight:700'}]
+      .concat(funds().map(f=>({v:'f:'+f.id,n:'锅·'+f.name,st:'background:var(--or);color:#04121a;font-weight:700'})))
+      .concat([{v:'obj',n:'对象付(她出)',st:'background:var(--pu);color:#fff;font-weight:700'}]);
+    h+='<div style="display:flex;gap:6px;margin-top:8px;align-items:center;flex-wrap:wrap"><span style="font-size:11px;color:var(--txt3)">钱从哪出：</span>'+
+       srcs.map(s=>'<div class="chip '+(curSrc===s.v?'on':'')+'" style="'+(curSrc===s.v?s.st:'')+'" onclick="setRecSrc(\''+s.v+'\')">'+s.n+'</div>').join('')+'</div>';
+    if(REC.payer==='obj') h+='<div style="font-size:11px;color:var(--txt3);margin-top:6px">她付 → 单列统计，不进我的账（亲密付）</div>';
+    else if(REC.srcFund) h+='<div style="font-size:11px;color:var(--or);margin-top:6px">从「'+fundName(REC.srcFund)+'」锅出：钱早拨出来了，不占活钱</div>';
   }
   else if(REC.mode==='inc'){
     h+=INCS.map(s=>'<div class="chip '+(REC.src===s.k?'on':'')+'" style="'+(REC.src===s.k?'background:var(--gr);color:#04121a;font-weight:700':'')+'" onclick="REC.src=\''+s.k+'\';renderPickArea()">'+s.n+'</div>').join('');
@@ -645,9 +703,13 @@ function renderPickArea(){
     h+='<div class="chips" style="margin-bottom:8px">'+
        '<div class="chip '+(REC.mvDir==='in'?'on':'')+'" style="'+(REC.mvDir==='in'?'background:var(--cy);color:#04121a;font-weight:700':'')+'" onclick="REC.mvDir=\'in\';renderPickArea()">→ 存入/买入</div>'+
        '<div class="chip '+(REC.mvDir==='out'?'on':'')+'" style="'+(REC.mvDir==='out'?'background:var(--ye);color:#04121a;font-weight:700':'')+'" onclick="REC.mvDir=\'out\';renderPickArea()">← 转回活钱</div></div>';
-    const targets=[{v:'ylb',n:'余利宝'},{v:'gold',n:'黄金'},{v:'car',n:'买车基金'},{v:'sav',n:'其他存钱'}];
+    const base=[{v:'ylb',n:'余利宝'},{v:'gold',n:'黄金'},{v:'car',n:'买车基金'},{v:'sav',n:'其他存钱'}];
+    const targets=base.concat(funds().map(f=>({v:'f:'+f.id,n:'专项·'+f.name})));
     h+='<div class="chips">'+targets.map(t=>'<div class="chip '+(REC.mvTo===t.v?'on':'')+'" style="'+(REC.mvTo===t.v?'background:var(--pu);color:#fff;font-weight:700':'')+'" onclick="REC.mvTo=\''+t.v+'\';renderPickArea()">'+t.n+'</div>').join('')+'</div>';
-    h+='<div style="font-size:11px;color:var(--txt3);margin-top:7px">'+(REC.mvDir==='in'?'钱从我活钱转入：记录投资/存钱':'钱回到我活钱（本金回来，不算收入）')+'</div>';
+    const fSel=REC.mvTo.slice(0,2)==='f:';
+    h+='<div style="font-size:11px;color:var(--txt3);margin-top:7px">'+(fSel
+      ?(REC.mvDir==='in'?'钱从我活钱转入「'+fundName(REC.mvTo.slice(2))+'」锅：留出来专门花':'从「'+fundName(REC.mvTo.slice(2))+'」锅退回活钱（钱回来继续可花，不算收入）')
+      :(REC.mvDir==='in'?'钱从我活钱转入：记录投资/存钱':'钱回到我活钱（本金回来，不算收入）'))+'</div>';
   }
   pa.innerHTML=h;
 }
@@ -666,11 +728,14 @@ function saveRec(){
   const rec={id:uid(),d:REC.date||TODAY(),amt,note,ts:nowTs()};
   if(REC.mode==='exp'){
     if(REC.payer==='obj'){ rec.type='obj'; rec.cat=REC.cat; }
-    else { rec.type='exp'; rec.cat=REC.cat; if(note) smartLearn(note,REC.cat); }
+    else { rec.type='exp'; rec.cat=REC.cat; if(REC.srcFund) rec.srcFund=REC.srcFund; else if(note) smartLearn(note,REC.cat); }
   }
   else if(REC.mode==='inc'){ rec.type='inc'; rec.src=REC.src; }
   else{ /* mv */
-    if(REC.mvDir==='in'){
+    if(REC.mvTo.slice(0,2)==='f:'){ /* 专项基金：放入=活钱→锅；转出=退回活钱 */
+      rec.type='fd'; rec.dir=REC.mvDir; rec.fund=REC.mvTo.slice(2); rec.note=note||(REC.mvDir==='in'?'放入':'退回');
+    }
+    else if(REC.mvDir==='in'){
       if(REC.mvTo==='ylb'||REC.mvTo==='gold'){ rec.type='mv'; rec.dir='in'; rec.acc=REC.mvTo; if(REC.mvTo==='gold'&&note==='') note='黄金买入'; }
       else { rec.type='sv'; rec.dir='in'; rec.goal=REC.mvTo==='car'?'car':'oth'; }
     }else{
@@ -700,7 +765,7 @@ function coachFeed(){
   const cards=[];
   const a=assets(), toNext=daysToNextPay(), today=+TODAY().slice(8,10);
   const cyc=recsInCycle();
-  const inc=periodIn(cyc), exp=cyc.filter(r=>r.type==='exp').reduce((s,r)=>s+(+r.amt||0),0);
+  const inc=periodIn(cyc), exp=cyc.filter(r=>r.type==='exp'&&!r.srcFund).reduce((s,r)=>s+(+r.amt||0),0);
   /* 1) 发薪日提醒 */
   if(TODAY()===nextPayday()||(today<=2&&cyc.length<3)) cards.push({q:'今天/刚发薪 💰',a:'记一下工资到账（收入→工资），教练好帮你规划这个周期。',w:'ok',btn:['记工资'],act:'inc'});
   /* 2) 到期计划 */
@@ -717,7 +782,7 @@ function coachFeed(){
     const actualDaily=Math.round(exp/daysPassed*100)/100;
     if(actualDaily>targetDaily*1.15&&targetDaily>=0){
       /* 找超速大头 */
-      const byCat={}; cyc.filter(r=>r.type==='exp').forEach(r=>{ byCat[r.cat]=(byCat[r.cat]||0)+(+r.amt||0); });
+      const byCat={}; cyc.filter(r=>r.type==='exp'&&!r.srcFund).forEach(r=>{ byCat[r.cat]=(byCat[r.cat]||0)+(+r.amt||0); });
       let top=null; Object.keys(byCat).forEach(k=>{ if(!top||byCat[k]>byCat[top]) top=k; });
       const cut=Math.max(0,Math.round((actualDaily-targetDaily)*toNext));
       cards.push({q:'花钱有点快了 ⚡',a:'最近日均 '+money(actualDaily)+'，按活钱够撑 '+money(targetDaily)+'/天。照这速度到下次发薪会超约 '+money(cut)+'。大头在「'+catInfo(top||'other').n+'」('+money(byCat[top||'other'])+')。接下来每天压到 '+money(Math.max(0,targetDaily))+' 就能稳。',w:'bad'});
@@ -744,7 +809,7 @@ function coachFeed(){
 /* ---------------- 首页 ---------------- */
 function renderHome(){
   const a=assets(), toNext=daysToNextPay(), cyc=recsInCycle();
-  const inc=periodIn(cyc), exp=cyc.filter(r=>r.type==='exp').reduce((s,r)=>s+(+r.amt||0),0);
+  const inc=periodIn(cyc), exp=cyc.filter(r=>r.type==='exp'&&!r.srcFund).reduce((s,r)=>s+(+r.amt||0),0);
   const daily=toNext>0?Math.round(a.cash/toNext*100)/100:null;
   const recent=S.recs.slice().sort((x,y)=>(y.d+ (y.ts||0)/1e13)-(x.d+(x.ts||0)/1e13)).slice(0,6);
   let h='';
@@ -752,7 +817,7 @@ function renderHome(){
   h+='<div class="card gr-b"><div class="c-head"><div class="c-title">FUND / 资金</div><div class="c-sub">'+cycleLabel()+' · 距发薪 '+toNext+' 天</div></div>'+
      '<div style="display:flex;align-items:baseline;gap:8px;margin:2px 0 8px"><span style="color:var(--txt3);font-size:12px">还能花</span><span class="big-num" style="font-size:34px;color:var(--gr)">'+money(a.cash)+'</span>'+
      (daily!=null?'<span style="margin-left:auto;font-size:12px;color:var(--cy)">日均 <b style="font-size:16px">'+money(daily)+'</b></span>':'')+'</div>'+
-     '<div class="assets">'+assetChip('活钱',money(a.cash),'gr')+assetChip('余利宝',money(a.ylb),'cy')+assetChip('黄金',money(a.gold),'ye')+assetChip('代存',money(a.save),'pu')+assetChip('净资产',money(a.total),'','total')+'</div></div>';
+     '<div class="assets">'+assetChip('活钱',money(a.cash),'gr')+assetChip('余利宝',money(a.ylb),'cy')+assetChip('黄金',money(a.gold),'ye')+assetChip('代存',money(a.save),'pu')+assetChip('专项',money(a.funds),'or')+assetChip('净资产',money(a.total),'','total')+'</div></div>';
   /* 本周期到账/支出 */
   h+='<div class="hud"><div class="cell"><div class="k">本周期到账</div><div class="v gr">'+money(inc)+'</div></div>'+
      '<div class="cell"><div class="k">本周期支出</div><div class="v '+(exp>daily?'mg':'')+'">'+money(exp)+'</div></div>'+
@@ -786,10 +851,17 @@ function assetChip(n,m,c,extra){ return '<div class="a '+(extra||'')+'"><div cla
 function recRow(r){
   let ic='💸',c='var(--txt)',t1='',t2='';
   if(r.type==='inc'){ const si=INCS.find(x=>x.k===r.src)||{}; ic='💰'; c='var(--gr)'; t1=si.n||'收入'; t2=(r.note||TODAY())&&(r.d); }
+  else if(r.type==='exp'&&r.srcFund){ ic='🎒'; c='var(--or)'; t1=r.note||'专项花销'; t2='专项·'+fundName(r.srcFund)+(r.cat?' · '+catInfo(r.cat).n:'')+' · '+r.d; }
   else if(r.type==='exp'||r.type==='obj'){ const ci=catInfo(r.cat); ic=ci.e; c=r.type==='obj'?'var(--pu)':'var(--mg)'; t1=r.note||ci.n; t2=ci.n+(r.type==='obj'?' · 对象付':'')+' · '+r.d; }
   else if(r.type==='mv'){ const an=(r.acc==='gold'?'黄金':'余利宝'); ic=r.dir==='in'?'📥':'📤'; c=r.dir==='in'?'var(--or)':'var(--cy)'; t1=(r.note||(r.dir==='in'?'买入':'赎回'))+' '+an; t2=r.d; }
   else if(r.type==='sv'){ const gn=(goalOf(r.goal)||{name:r.goal==='car'?'买车基金':'代存'}).name; ic=r.dir==='in'?'🏦':'↩️'; c=r.dir==='in'?'var(--pu)':'var(--gr)'; t1=(r.note||gn)+(r.dir==='in'?' 存入':' 转回'); t2=r.d; }
-  return '<div class="row"><div class="ic" style="background:rgba(255,255,255,.05)">'+ic+'</div><div class="mid"><div class="t1">'+esc(t1)+'</div><div class="t2">'+esc(t2)+'</div></div><div class="amt '+(r.type==='inc'||r.type==='sv'&&r.dir==='out'||r.type==='mv'&&r.dir==='out'?'':'mg')+'" style="color:'+c+'">'+(r.type==='inc'||(r.type==='mv'&&r.dir==='out')||(r.type==='sv'&&r.dir==='out')?'+':'−')+fmt(r.amt)+'</div></div>';
+  else if(r.type==='fd'){ if(r.dir==='xf'){ ic='🔁'; c='var(--txt2)'; t1='结转 '+(r.note||(fundName(r.fund)+'→'+fundName(r.to))); t2=r.d; }
+    else{ ic=r.dir==='in'?'📥':'↩️'; c='var(--or)'; t1=(r.note||(r.dir==='in'?'放入':'退回'))+' · 专项·'+fundName(r.fund); t2=r.d; } }
+  const outAmt=(r.type==='inc'||r.type==='sv'&&r.dir==='out'||r.type==='mv'&&r.dir==='out'||r.type==='fd'&&(r.dir==='out'||r.dir==='xf'))?'+':'−';
+  if(r.type==='fd'&&r.dir==='xf'){ /* 结转行：金额不带±便于读(两方向都显示数额) */
+    return '<div class="row"><div class="ic" style="background:rgba(255,255,255,.05)">'+ic+'</div><div class="mid"><div class="t1">'+esc(t1)+'</div><div class="t2">'+esc(t2)+'</div></div><div class="amt" style="color:'+c+'">'+fmt(r.amt)+'</div></div>';
+  }
+  return '<div class="row"><div class="ic" style="background:rgba(255,255,255,.05)">'+ic+'</div><div class="mid"><div class="t1">'+esc(t1)+'</div><div class="t2">'+esc(t2)+'</div></div><div class="amt '+(r.type==='inc'||r.type==='sv'&&r.dir==='out'||r.type==='mv'&&r.dir==='out'||r.type==='fd'&&r.dir==='out'?'':'mg')+'" style="color:'+c+'">'+(r.type==='exp'&&r.srcFund?'−':outAmt)+fmt(r.amt)+'</div></div>';
 }
 function useTpl(i){ const t=(window._tpls=topTpls())[i]; if(!t) return; S.recs.push({id:uid(),d:TODAY(),amt:t.amt,note:t.note,cat:t.cat,type:'exp',ts:nowTs()}); save(); render(); showToast('已记 '+esc(t.note)+' '+money(t.amt),'ok'); }
 function delRec(id){ if(!confirm('删除这笔？')) return; S.recs=S.recs.filter(r=>r.id!==id); save(); render(); }
@@ -797,9 +869,10 @@ function delRec(id){ if(!confirm('删除这笔？')) return; S.recs=S.recs.filte
 function renderCycle(){
   const toNext=daysToNextPay(), a=assets(), cyc=recsInCycle();
   const inc=periodIn(cyc);
-  const exps=cyc.filter(r=>r.type==='exp');
+  const exps=cyc.filter(r=>r.type==='exp'&&!r.srcFund);
   const exp=exps.reduce((s,r)=>s+(+r.amt||0),0);
   const objs=cyc.filter(r=>r.type==='obj').reduce((s,r)=>s+(+r.amt||0),0);
+  const fs=fundsSpentIn(cyc);
   const byCat={}; exps.forEach(r=>{ byCat[r.cat]=(byCat[r.cat]||0)+(+r.amt||0); });
   const sorted=Object.keys(byCat).sort((x,y)=>byCat[y]-byCat[x]);
   const maxV=sorted.length?byCat[sorted[0]]:0;
@@ -808,7 +881,7 @@ function renderCycle(){
   h+='<div class="card cy-b"><div class="c-head"><div class="c-title">CYCLE / 发薪周期</div><div class="c-sub">'+cycleLabel()+'</div></div>'+
      '<div style="display:flex;align-items:baseline;gap:10px;flex-wrap:wrap"><span style="color:var(--txt3);font-size:12px">距下次发薪</span><span class="big-num" style="font-size:30px;color:var(--cy)">'+toNext+' 天</span>'+
      '<span style="font-size:12px;color:var(--txt2)">(下次 '+nextPayday()+')</span></div>'+
-     '<div style="font-size:12px;color:var(--txt3);margin-top:8px">到账 <b style="color:var(--gr)">'+money(inc)+'</b> · 支出 <b style="color:var(--mg)">'+money(exp)+'</b>'+(objs?' · 对象付 <b style="color:var(--pu)">'+money(objs)+'</b>':'')+'</div></div>';
+     '<div style="font-size:12px;color:var(--txt3);margin-top:8px">到账 <b style="color:var(--gr)">'+money(inc)+'</b> · 支出 <b style="color:var(--mg)">'+money(exp)+'</b>'+(objs?' · 对象付 <b style="color:var(--pu)">'+money(objs)+'</b>':'')+(fs?' · 专项花销 <b style="color:var(--or)">'+money(fs)+'</b>':'')+'</div></div>';
   h+='<div class="card"><div class="c-head"><div class="c-title">SPEND / 花在哪</div></div>';
   if(!sorted.length) h+='<div class="empty">这个周期还没有支出</div>';
   else sorted.slice(0,6).forEach(k=>{ const v=byCat[k], p=maxV?Math.round(v/maxV*100):0, ci=catInfo(k); h+='<div style="display:flex;align-items:center;gap:8px;margin-bottom:7px"><span style="width:70px;font-size:12px;flex-shrink:0">'+ci.e+' '+ci.n+'</span><div class="bar" style="flex:1"><i style="width:'+p+'%;background:'+catCol(k)+'"></i></div><span style="font-family:var(--mono);font-size:12px">'+money(v)+'</span></div>'; });
@@ -914,6 +987,157 @@ function addGoalPrompt(){
   S.goals.push({id,name:n.trim(),target:parseFloat(t)||0});
   S.t0.save[id]=0;
   save(); render(); showToast('目标已添加：往「代存」存入即可','ok');
+}
+
+/* ================================================================
+   v4 — ui-pages-fund：专项基金（锅）——为某件事留出来专门花的钱，不是储蓄
+   ================================================================ */
+let fundOpen=null;   /* 当前打开的基金 id，null=列表 */
+function goFundDetail(id){ fundOpen=id; render(); }
+function fundBack(){ fundOpen=null; render(); }
+
+/* ---------------- 列表 ---------------- */
+function renderFund(){
+  if(fundOpen&&fundOf(fundOpen)) return fundDetail(fundOpen);
+  const fs=funds();
+  let h='';
+  h+='<div class="c-head" style="margin:2px 2px 8px"><div class="c-title">FUNDS / 专项基金</div><div class="c-sub">为花而留的锅 · 不是储蓄</div></div>';
+  if(!fs.length){
+    h+='<div class="card"><div class="empty">还没有专项基金。<br>想旅游 / 办件事先留钱？建一个锅，把活钱放进去，到点专门花。</div>'+
+       '<div style="font-size:11px;color:var(--txt3);line-height:1.7;margin-top:10px">和对象共用也适用：钱统一放一个人手上混着花，你的账只记「放入」和「退回」两笔，中间花销整体统计就行。</div></div>';
+  }else{
+    fs.forEach(f=>{
+      const bal=fundBal(f.id), put=fundPutIn(f.id), sp=fundSpent(f.id), target=f.target||0;
+      const pct=target>0?Math.min(100,Math.round(put/target*100)):0;
+      h+='<div class="card" style="cursor:pointer" onclick="goFundDetail(\''+f.id+'\')">'+
+        '<div class="c-head"><div class="c-title">🎒 '+esc(f.name)+(f.herIn>0?' <span style="font-size:9px;color:var(--pu);border:1px solid rgba(176,107,255,.4);padding:1px 6px;border-radius:6px">她放 ¥'+fmt(f.herIn)+'</span>':'')+'</div><div class="c-sub" style="color:var(--txt3)">详情 ›</div></div>'+
+        '<div style="display:flex;align-items:baseline;gap:8px;margin:0 0 6px"><span style="color:var(--txt3);font-size:12px">锅底</span><span class="big-num" style="font-size:26px;color:var(--or)">'+money(bal)+'</span>'+
+        (target>0?'<span style="margin-left:auto;font-size:12px;color:var(--txt3)">预算 '+money(target)+'</span>':'')+'</div>'+
+        '<div style="display:flex;gap:14px;font-size:11.5px;color:var(--txt3)"><span>已放(我) <b style="color:var(--txt)">'+money(put)+'</b></span><span>已花 <b style="color:var(--mg)">'+money(sp)+'</b></span></div>'+
+        (target>0?'<div class="bar" style="margin-top:7px"><i style="width:'+pct+'%;background:var(--or)"></i></div>':'')+
+        '</div>';
+    });
+  }
+  h+='<button class="btn cy" style="margin-top:6px" onclick="newFundPrompt()">＋ 新建专项基金</button>'+
+     '<div style="font-size:11px;color:var(--txt3);margin-top:10px;line-height:1.7">用法：先把钱从活钱「放入」锅（净资产不变，只是留出来）；到了用它，记花销时选「锅·名字」出，或回来记一笔总账。花不完：留着下次 / 退回活钱 / 结转给别的基金。</div>';
+  return h;
+}
+
+/* ---------------- 新建 ---------------- */
+function newFundPrompt(){
+  openModal('<div class="mh">新建专项基金</div>'+
+    '<div class="field"><div class="fl">名字</div><input class="inp" id="nf_name" placeholder="如：2026国庆旅行 / 办婚礼 / 学习班"></div>'+
+    '<div class="field"><div class="fl">目标预算 ¥（可空）</div><input class="inp" id="nf_target" type="number" inputmode="decimal" placeholder="想留到多少，心里有数"></div>'+
+    '<div class="field"><div class="fl">她放入 ¥（统计用，不进我的账；可空）</div><input class="inp" id="nf_her" type="number" inputmode="decimal" placeholder="0"></div>'+
+    '<div style="font-size:11px;color:var(--txt3)">对象的钱放进来只做整体统计，不进我的资产/收入，账才不会乱。</div>'+
+    '<div style="display:flex;gap:9px;margin-top:12px"><button class="btn ghost" style="flex:1" onclick="closeModal()">取消</button><button class="btn cy" style="flex:1" onclick="nfCreate()">创建</button></div>');
+}
+function nfCreate(){
+  const n=$('nf_name').value.trim(); if(!n){ showToast('起个名字','warn'); return; }
+  const t=parseFloat($('nf_target').value)||0, her=parseFloat($('nf_her').value)||0;
+  const id='f'+uid().slice(-6);
+  S.funds=S.funds||[]; S.funds.push({id,name:n,target:t,herIn:her,created:TODAY()});
+  save(); closeModal(); fundOpen=id; render(); showToast('已建「'+n+'」，可以把活钱放进去了','ok');
+}
+
+/* ---------------- 详情 ---------------- */
+function fundDetail(id){
+  const f=fundOf(id); if(!f) return '';
+  const bal=fundBal(id), put=fundPutIn(id), sp=fundSpent(id), target=f.target||0;
+  const pct=target>0?Math.min(100,Math.round(put/target*100)):0;
+  const others=funds().filter(x=>x.id!==id);
+  const rows=fundRecs(id);
+  let h='';
+  h+='<div style="margin:2px 0 8px"><span style="color:var(--cy);cursor:pointer;font-size:13px" onclick="fundBack()">‹ 返回</span></div>';
+  h+='<div class="card cy-b"><div class="c-head"><div class="c-title">🎒 '+esc(f.name)+'</div>'+
+     '<div class="c-sub" style="cursor:pointer" onclick="editFundMeta(\''+id+'\')">✎ 改名/预算</div></div>'+
+     '<div style="display:flex;align-items:baseline;gap:8px;margin:2px 0 6px"><span style="color:var(--txt3);font-size:12px">锅底(我的)</span><span class="big-num" style="font-size:32px;color:var(--or)">'+money(bal)+'</span>'+
+     (target>0?'<span style="margin-left:auto;font-size:12px;color:var(--txt3)">预算 '+money(target)+' · 已放 '+pct+'%</span>':'')+'</div>'+
+     (target>0?'<div class="bar" style="margin:2px 0 10px"><i style="width:'+pct+'%;background:var(--or)"></i></div>':'')+
+     '<div class="hud"><div class="cell"><div class="k">我放入</div><div class="v or">'+money(put)+'</div></div>'+
+     '<div class="cell"><div class="k">已花(锅出)</div><div class="v '+(sp>0?'mg':'')+'">'+money(sp)+'</div></div>'+
+     '<div class="cell"><div class="k">她放入</div><div class="v pu" style="cursor:pointer" onclick="editHerIn(\''+id+'\')">'+money(f.herIn||0)+(f.herIn>0?' ✎':'')+'</div></div></div>'+
+     '<div style="display:flex;gap:7px;margin-top:10px;flex-wrap:wrap">'+
+     '<button class="mini cy" onclick="fundPut(\''+id+'\')">＋放入</button>'+
+     '<button class="mini" style="background:rgba(255,45,85,.15);color:var(--mg)" onclick="fundSpendPrompt(\''+id+'\')">记花销</button>'+
+     '<button class="mini" onclick="fundBackPrompt(\''+id+'\')">退回活钱</button>'+
+     (others.length?'<button class="mini" onclick="fundXfPrompt(\''+id+'\')">结转…</button>':'')+
+     '<button class="mini" onclick="fundDel(\''+id+'\')">删除</button></div>'+
+     '<div style="font-size:11px;color:var(--txt3);margin-top:9px;line-height:1.7">她放/她付：只统计不进我账，整体看预算够不够。<b>她的钱放我这也别记成收入</b>——填「她放入」就行。</div></div>';
+  /* 流水 */
+  h+='<div class="c-head" style="margin:10px 2px 2px"><div class="c-title">FLOW / 这口锅</div><div class="c-sub">'+rows.length+' 笔</div></div>';
+  h+=rows.length?'<div class="card" style="padding-top:4px">'+rows.map(recRow).join('')+'</div>':'<div class="empty">还没有流水<br>点「＋放入」先把钱留进来</div>';
+  return h;
+}
+/* 操作：放钱进锅（走记一笔-转入，可带备注连记） */
+function fundPut(id){
+  const f=fundOf(id); if(!f) return;
+  REC.mode='mv'; REC.mvDir='in'; REC.mvTo='f:'+id; REC.amt=''; REC.note='';
+  openSheet(); setRecMode('mv');
+  showToast('转入目的地已选「专项·'+f.name+'」','ok');
+}
+/* 记花销：省心总账式（逐笔可去记一笔选“锅·名”出） */
+function fundSpendPrompt(id){
+  const f=fundOf(id); if(!f) return;
+  const v=prompt('「'+f.name+'」这趟/这笔花销 ¥（从锅出，钱已拨出不占活钱）'); if(v==null) return;
+  const n=parseFloat(v); if(!(n>0)){ showToast('金额无效','warn'); return; }
+  const note=prompt('备注（如：国庆云南 · 总花销；可空）','')||'';
+  S.recs.push({id:uid(),d:TODAY(),amt:Math.round(n*100)/100,note:note.trim(),cat:'other',type:'exp',srcFund:id,ts:nowTs()});
+  save(); render(); showToast('已记花销 '+money(n),'ok');
+}
+/* 退回活钱 */
+function fundBackPrompt(id){
+  const f=fundOf(id); if(!f) return;
+  const bal=fundBal(id);
+  const v=prompt('从「'+f.name+'」退回活钱 ¥（锅底 '+fmt(bal)+'）', bal>0?fmt(bal):'');
+  if(v==null) return;
+  const n=Math.round((parseFloat(v)||0)*100)/100;
+  if(!(n>0)){ showToast('金额无效','warn'); return; }
+  if(n>bal){ showToast('超过锅底了（锅底 '+money(bal)+'）','warn'); return; }
+  S.recs.push({id:uid(),d:TODAY(),amt:n,note:'退回活钱',type:'fd',dir:'out',fund:id,ts:nowTs()});
+  save(); render(); showToast('已退回 '+money(n)+' 到活钱','ok');
+}
+/* 结转给别的基金（不动活钱、净资产不变） */
+let xfFrom=null;
+function fundXfPrompt(id){ xfFrom=id; renderXf(); }
+function renderXf(){
+  const fs=funds().filter(f=>f.id!==xfFrom);
+  if(!fs.length){ showToast('没有其它基金可结转','warn'); return; }
+  openModal('<div class="mh">结转给哪个基金</div><div style="font-size:11px;color:var(--txt3);margin-bottom:8px">从「'+fundName(xfFrom)+'」挪到另一口锅（不动活钱，净资产不变）</div>'+
+    fs.map(f=>'<button class="btn ghost" style="display:block;width:100%;margin-bottom:8px;text-align:left" onclick="xfDo(\''+f.id+'\')">🎒 '+esc(f.name)+'（锅底 '+fmt(fundBal(f.id))+'）</button>').join('')+
+    '<button class="btn" style="width:100%" onclick="closeModal()">取消</button>');
+}
+function xfDo(to){
+  const from=xfFrom; const bal=fundBal(from); if(bal<=0){ showToast('源锅底为 0，没什么可结转','warn'); return; }
+  const v=prompt('结转金额 ¥（锅底 '+fmt(bal)+'）', fmt(bal)); if(v==null){ renderXf(); return; }
+  const n=Math.round((parseFloat(v)||0)*100)/100;
+  if(!(n>0)||n>bal){ showToast('金额无效或超过锅底','warn'); renderXf(); return; }
+  S.recs.push({id:uid(),d:TODAY(),amt:n,note:'结转',type:'fd',dir:'xf',fund:from,to,ts:nowTs()});
+  save(); closeModal(); render(); showToast('已结转 '+money(n)+' → '+fundName(to),'ok');
+}
+/* 编辑：改名/预算；她放入 */
+function editFundMeta(id){
+  const f=fundOf(id); if(!f) return;
+  const nm=prompt('基金名字', f.name); if(nm==null) return;
+  const tg=prompt('目标预算 ¥（0=不设）', f.target||''); if(tg==null) return;
+  if(nm.trim()) f.name=nm.trim();
+  f.target=Math.max(0,parseFloat(tg)||0);
+  save(); render(); showToast('已保存','ok');
+}
+function editHerIn(id){
+  const f=fundOf(id); if(!f) return;
+  const v=prompt('她放入合计 ¥（统计用，不进我的账）', f.herIn||'0'); if(v==null) return;
+  f.herIn=Math.max(0,parseFloat(v)||0);
+  save(); render(); showToast('已保存','ok');
+}
+/* 删除：仅允许锅底 0（钱都花完或已退回/结转）；墓碑保留以便历史流水仍显示名字 */
+function fundDel(id){
+  const f=fundOf(id); if(!f) return;
+  const bal=fundBal(id);
+  if(bal!==0){ showToast('锅底还有 '+money(bal)+'，先退回活钱或结转掉再删','warn'); return; }
+  if(!confirm('删除专项基金「'+f.name+'」？历史流水仍显示名字，统计不再列入')) return;
+  f.dead=1;
+  save(); fundOpen=null; render(); showToast('已删除','ok');
 }
 
 /* ================================================================
