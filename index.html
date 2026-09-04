@@ -190,7 +190,7 @@ nav button .ni{font-size:19px;line-height:1}
    ================================================================ */
 /* ---------- 常量 ---------- */
 const KEY='wb_coach_v1';
-const APP_VER='v4.0.4';
+const APP_VER='v4.0.5';
 const TODAY=()=>{const d=new Date();return d.getFullYear()+'-'+P(d.getMonth()+1)+'-'+P(d.getDate());};
 const P=n=>n<10?'0'+n:''+n;
 const YM=dstr=>String(dstr||'').slice(0,7);
@@ -702,7 +702,7 @@ function coachFeed(){
   if(toNext>0&&a.cash<Math.round((a.cash/toNext)*Math.min(7,toNext))&&a.cash<300) cards.push({q:'活钱不多了 ⚠️',a:'手头 '+money(a.cash)+'。注意别在月底前花光，必要时可转回余利宝一点。',w:'ye'});
   /* 5) 目标里程碑 */
   const car=goalOf('car');
-  if(car&&car.target){ const v=saveVal('car')+(S.t0.save.car||0); const pct=Math.round(v/car.target*100);
+  if(car&&car.target){ const v=saveVal('car'); const pct=Math.round(v/car.target*100);
     if(pct>=100) cards.push({q:'🎉 买车目标达成了！',a:'已存到 '+money(v)+'。可以把目标提高到新的数额，或者开始真正的买车计划。',w:'ok'});
     else if(pct>=50&&pct<100&&Math.abs(pct-((S.stateFlags||{})._carPct||-1))>=20) cards.push({q:'存车过半 🚗 '+pct+'%',a:'已 '+money(v)+'/'+money(car.target)+'。按现在的节奏，很快就能摸到车了。',w:'ok'});
   }
@@ -853,7 +853,7 @@ function renderGoal(){
   let h='';
   h+='<div class="c-head" style="margin:2px 2px 8px"><div class="c-title">GOALS / 目标</div><div class="c-sub">存进去的目标钱在"代存"里</div></div>';
   (S.goals||[]).forEach(g=>{
-    const v=saveVal(g.id)+(S.t0.save[g.id]||0);
+    const v=saveVal(g.id);
     const target=g.target||1;
     const pct=Math.min(100,Math.round(v/target*100));
     const e=g.id==='car'?'🚗':(g.id==='oth'?'💰':'🎯');
