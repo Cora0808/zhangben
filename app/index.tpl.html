@@ -1,0 +1,45 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover,interactive-widget=resizes-content">
+<meta name="theme-color" content="#05070c">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="资金教练">
+<meta name="description" content="记账·预算·理财·教练">
+<title>打工人资金教练</title>
+<link rel="manifest" href="manifest.json">
+<link rel="icon" type="image/png" sizes="192x192" href="icon-192-v2.png">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<style id="appcss"></style>
+</head>
+<body>
+<div id="updbar" style="display:none;position:sticky;top:0;z-index:45;background:rgba(0,229,255,.12);border-bottom:1px solid rgba(0,229,255,.4);padding:8px 12px;font-size:13px;color:var(--cy);cursor:pointer" onclick="forceUpdate()">🔄 发现新版本，点此立即更新</div>
+<div id="app">
+  <main id="view"></main>
+  <nav id="nav">
+    <button data-go="home" class="on"><span class="ni">🏠</span>首页</button>
+    <button data-go="cycle"><span class="ni">📅</span>周期</button>
+    <button data-go="invest"><span class="ni">📈</span>理财</button>
+    <button data-go="fund"><span class="ni">🗂</span>专项</button>
+    <button data-go="goal"><span class="ni">🎯</span>目标</button>
+    <button data-go="set"><span class="ni">⚙️</span>设置</button>
+  </nav>
+  <button class="fab" id="fab" onclick="openRecord('exp')">＋</button>
+</div>
+
+<!-- 记账 sheet 已改整页表单（recShell），此处不再需要 -->
+<!-- 通用弹窗 -->
+<div class="mask" id="mask" onclick="closeModal()"></div>
+<div class="modal" id="modal"></div>
+
+<!-- 首次引导 -->
+<div class="onboard" id="onboard" style="display:none"></div>
+
+<div id="toast"></div>
+
+<script id="appjs"></script>
+</body>
+</html>

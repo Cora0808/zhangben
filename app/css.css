@@ -1,0 +1,134 @@
+/* 打工人资金教练 v4 — 设计语言（赛博暗色，沿用家族视觉） */
+:root{
+  --bg:#05070c; --bg2:#080c14; --panel:#0c1220; --panel2:#111a2b;
+  --line:#1a2739; --line2:#26374f;
+  --txt:#E8F2FF; --txt2:#8CA3C0; --txt3:#55698A;
+  --cy:#00E5FF; --mg:#FF2E88; --gr:#00FFA3; --ye:#FFD60A;
+  --pu:#B06BFF; --or:#FF8A3D; --rd:#FF4D4D;
+  --mono:ui-monospace,SFMono-Regular,"SF Mono",Menlo,Consolas,"Liberation Mono",monospace;
+  --sans:-apple-system,BlinkMacSystemFont,"PingFang SC","Hiragino Sans GB","Microsoft YaHei",sans-serif;
+  --safe-b:env(safe-area-inset-bottom,0px);
+  --safe-t:env(safe-area-inset-top,0px);
+}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{margin:0;padding:0;height:100%;overflow:hidden}
+body{background:var(--bg);color:var(--txt);font-family:var(--sans);font-size:15px;line-height:1.5;-webkit-font-smoothing:antialiased;user-select:none}
+#app{height:100%;display:flex;flex-direction:column;position:relative}
+main{flex:1;overflow-y:auto;padding:10px 12px calc(76px + var(--safe-b));scrollbar-width:none}
+main::-webkit-scrollbar{display:none}
+
+/* 通用卡片 */
+.card{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:13px;margin-bottom:11px}
+.card.cy-b{border-color:rgba(0,229,255,.35)}
+.card.gr-b{border-color:rgba(0,255,163,.3)}
+.card.ye-b{border-color:rgba(255,214,10,.35)}
+.c-head{display:flex;align-items:baseline;gap:8px;margin-bottom:9px}
+.c-title{font-family:var(--mono);font-size:10.5px;letter-spacing:.14em;color:var(--cy);font-weight:700}
+.c-sub{margin-left:auto;font-size:11px;color:var(--txt3)}
+.empty{color:var(--txt3);text-align:center;padding:26px 12px;font-size:13px;line-height:1.7}
+
+/* 大数字 */
+.big-num{font-family:var(--mono);font-weight:700}
+.hud{display:flex;gap:8px;margin-bottom:11px}
+.hud .cell{flex:1;background:var(--panel);border:1px solid var(--line);border-radius:13px;padding:10px;text-align:center}
+.hud .cell .k{font-size:9.5px;color:var(--txt3);font-family:var(--mono);letter-spacing:.06em}
+.hud .cell .v{font-family:var(--mono);font-size:17px;font-weight:700;margin-top:3px}
+.hud .cell .v.gr{color:var(--gr)} .hud .cell .v.cy{color:var(--cy)}
+.hud .cell .v.ye{color:var(--ye)} .hud .cell .v.mg{color:var(--mg)}
+.hud .cell .v.pu{color:var(--pu)}
+
+/* 进度条 */
+.bar{background:#0a101d;border-radius:99px;height:7px;overflow:hidden;position:relative}
+.bar i{display:block;height:100%;border-radius:99px}
+
+/* 资产条 */
+.assets{display:flex;gap:6px;overflow-x:auto;padding-bottom:3px}
+.assets .a{flex-shrink:0;min-width:82px;background:var(--panel2);border:1px solid var(--line);border-radius:11px;padding:7px 9px}
+.assets .a .n{font-size:9.5px;color:var(--txt3)}
+.assets .a .m{font-family:var(--mono);font-size:13.5px;font-weight:600;margin-top:2px}
+.assets .a.total{border-color:rgba(0,229,255,.4);background:rgba(0,229,255,.06)}
+.assets .a.total .m{color:var(--cy)}
+
+/* 分类 chips */
+.chips{display:flex;flex-wrap:wrap;gap:7px}
+.chip{border:1px solid var(--line2);background:var(--panel2);border-radius:99px;padding:7px 12px;font-size:13px;display:flex;align-items:center;gap:5px;color:var(--txt2)}
+.chip .dot{width:7px;height:7px;border-radius:99px;flex-shrink:0}
+.chip.on{color:#04121a;border-color:transparent;font-weight:700}
+
+/* 列表行 */
+.row{display:flex;align-items:center;gap:10px;padding:9px 2px;border-bottom:1px solid rgba(255,255,255,.04)}
+.row:last-child{border-bottom:none}
+.row .ic{width:34px;height:34px;border-radius:10px;display:flex;align-items:center;justify-content:center;flex-shrink:0;font-size:16px}
+.row .mid{flex:1;min-width:0}
+.row .mid .t1{font-size:13.5px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.row .mid .t2{font-size:10.5px;color:var(--txt3);margin-top:1px}
+.row .amt{font-family:var(--mono);font-weight:600;font-size:14px}
+.row .amt.mg{color:var(--mg)}
+
+/* 记账 sheet */
+.sheet{position:fixed;left:0;right:0;bottom:0;z-index:68;background:var(--bg2);border-top:1px solid var(--line2);border-radius:18px 18px 0 0;padding:14px 14px calc(14px + var(--safe-b));transform:translateY(105%);transition:transform .22s ease;max-height:88vh;overflow-y:auto}
+.sheet.on{transform:none}
+.amt-disp{display:flex;align-items:center;justify-content:center;gap:6px;font-family:var(--mono);padding:14px 0 10px}
+.amt-disp .cur{color:var(--txt3);font-size:20px}
+.amt-disp .val{font-size:44px;font-weight:700;letter-spacing:.5px}
+.amt-disp .val.ph{color:var(--txt3);font-weight:400}
+.amt-disp.neg .val{color:var(--mg)}
+.kb{display:grid;grid-template-columns:repeat(3,1fr);gap:7px;margin-top:9px}
+.kb button{height:44px;border-radius:11px;border:1px solid var(--line);background:var(--panel2);color:var(--txt);font-size:20px;font-family:var(--mono)}
+.kb button:active{background:#1c2a41}
+.seg{display:flex;border:1px solid var(--line2);border-radius:11px;overflow:hidden;margin-bottom:10px}
+.seg button{flex:1;padding:8px 0;background:transparent;border:none;color:var(--txt3);font-size:13px}
+.seg button.on{color:#04121a;background:var(--cy);font-weight:700}
+
+/* 底部导航 */
+nav{position:fixed;left:0;right:0;bottom:0;z-index:50;display:flex;background:rgba(6,10,18,.92);backdrop-filter:blur(10px);border-top:1px solid var(--line);padding-bottom:var(--safe-b)}
+nav button{flex:1;background:none;border:none;color:var(--txt3);font-size:10px;padding:7px 0 8px;display:flex;flex-direction:column;gap:2px;align-items:center}
+nav button.on{color:var(--cy)}
+nav button .ni{font-size:19px;line-height:1}
+.hud .v.or{color:var(--or)}
+.fab{position:fixed;right:16px;bottom:calc(74px + var(--safe-b));z-index:40;width:54px;height:54px;border-radius:50%;border:none;background:var(--cy);color:#04121a;font-size:28px;font-weight:700;box-shadow:0 6px 24px rgba(0,229,255,.35)}
+.fab:active{transform:scale(.94)}
+
+/* 按钮 */
+.btn{background:var(--panel2);border:1px solid var(--line2);color:var(--txt);border-radius:11px;padding:11px;font-size:14px;width:100%}
+.btn.cy{background:var(--cy);color:#04121a;border:none;font-weight:700}
+.btn.ghost{background:transparent}
+.btn.mg{background:rgba(255,46,136,.15);border-color:rgba(255,46,136,.4);color:#ff7ab0}
+.mini{padding:4px 9px;font-size:11px;border-radius:8px;border:1px solid var(--line2);background:var(--panel2);color:var(--txt2)}
+.mini.cy{background:var(--cy);color:#04121a;border:none}
+
+/* 输入 */
+.inp{background:var(--bg2);border:1px solid var(--line2);border-radius:10px;padding:9px 11px;color:var(--txt);font-size:14px;width:100%}
+.field{margin-bottom:10px}
+.fl{font-size:12px;color:var(--txt2);margin-bottom:4px}
+.fh{font-size:10.5px;color:var(--txt3);margin-top:2px}
+
+/* toast */
+#toast{position:fixed;left:50%;bottom:96px;transform:translateX(-50%) translateY(20px);background:rgba(10,16,29,.95);border:1px solid var(--line2);color:var(--txt);padding:9px 15px;border-radius:99px;font-size:13px;opacity:0;pointer-events:none;transition:.25s;z-index:99;max-width:86vw;text-align:center}
+#toast.show{opacity:1;transform:translateX(-50%)}
+#toast.ok{border-color:rgba(0,255,163,.5);color:#9dffd7}
+#toast.warn{border-color:rgba(255,214,10,.5);color:#ffe27a}
+#toast.err{border-color:rgba(255,77,77,.5);color:#ff9d9d}
+
+/* 教练卡片 */
+.coach{border-left:3px solid var(--gr)}
+.coach.warn{border-left-color:var(--ye)}
+.coach.bad{border-left-color:var(--mg)}
+.coach .q{font-size:14px;font-weight:600;margin-bottom:5px}
+.coach .a{font-size:12.5px;color:var(--txt2);line-height:1.6}
+.coach .why{margin-top:7px;font-size:11px;color:var(--txt3);border-top:1px dashed var(--line2);padding-top:6px}
+
+/* modal */
+.mask{position:fixed;inset:0;background:rgba(2,4,8,.7);z-index:70;opacity:0;pointer-events:none;transition:.2s}
+.mask.on{opacity:1;pointer-events:auto}
+.modal{position:fixed;inset:auto 0 0 0;z-index:80;background:var(--bg2);border:1px solid var(--line2);border-top:none;border-radius:16px 16px 0 0;padding:16px;transform:translateY(105%);transition:.2s;max-height:86vh;overflow-y:auto}
+.modal.on{transform:none}
+.modal .mh{font-weight:700;font-size:15px;margin-bottom:12px;color:var(--cy)}
+.mask2{position:fixed;inset:0;background:rgba(2,4,8,.6);z-index:65;opacity:0;pointer-events:none;transition:.2s}
+.mask2.on{opacity:1;pointer-events:auto}
+.onboard{position:fixed;inset:0;z-index:120;background:var(--bg);padding:20px;overflow-y:auto}
+.onboard h2{color:var(--cy);margin:6px 0 4px}
+.onboard .sub{color:var(--txt3);font-size:12.5px;margin-bottom:16px;line-height:1.6}
+.steptitle{font-size:16px;font-weight:700;margin:8px 0 14px}
+/* 双列网格 */
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:8px}
