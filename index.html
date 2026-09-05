@@ -166,17 +166,7 @@ nav button .ni{font-size:19px;line-height:1}
   <button class="fab" id="fab" onclick="openRecord('exp')">＋</button>
 </div>
 
-<!-- 记账 sheet -->
-<div class="mask2" id="mask2" onclick="closeSheet()"></div>
-<div class="sheet" id="sheet">
-  <div class="seg" id="segMode">
-    <button data-m="exp" class="on" onclick="setRecMode('exp')">支出</button>
-    <button data-m="inc" onclick="setRecMode('inc')">收入</button>
-    <button data-m="mv" onclick="setRecMode('mv')">转入/转出</button>
-  </div>
-  <div id="recBox"></div>
-</div>
-
+<!-- 记账 sheet 已改整页表单（recShell），此处不再需要 -->
 <!-- 通用弹窗 -->
 <div class="mask" id="mask" onclick="closeModal()"></div>
 <div class="modal" id="modal"></div>
@@ -192,7 +182,7 @@ nav button .ni{font-size:19px;line-height:1}
    ================================================================ */
 /* ---------- 常量 ---------- */
 const KEY='wb_coach_v1';
-const APP_VER='v4.2.2';
+const APP_VER='v4.2.3';
 const TODAY=()=>{const d=new Date();return d.getFullYear()+'-'+P(d.getMonth()+1)+'-'+P(d.getDate());};
 const P=n=>n<10?'0'+n:''+n;
 const YM=dstr=>String(dstr||'').slice(0,7);
@@ -553,6 +543,7 @@ function showToast(msg,type){
 function vibrate(ms){ try{ if(navigator.vibrate) navigator.vibrate(ms||25); }catch(e){} }
 /* ---------- 导航 ---------- */
 function go(tab){
+  if(recPage||pfOn){ recPage=false; pfOn=false; }   /* 整页表单开着时点导航=关闭返回原页 */
   if(tab===curTab&&tab==='fund'&&fundOpen) fundOpen=null;   /* 再点专项=回列表 */
   curTab=tab;
   document.querySelectorAll('#nav button').forEach(b=>b.classList.toggle('on',b.dataset.go===tab));
@@ -561,6 +552,8 @@ function go(tab){
 function render(){
   const v=$('view');
   if(!S.onboard){ renderOnboard(); return; }
+  if(recPage){ v.innerHTML=recShell(); bindViewActions(); return; }   /* 记一笔=整页表单(输入不被键盘挡) */
+  if(pfOn){ v.innerHTML=pfHead(pfTitle)+pfHtml; bindViewActions(); return; }   /* 通用整页表单(计划项/专项基金/导入) */
   if(curTab==='home') v.innerHTML=renderHome();
   else if(curTab==='cycle') v.innerHTML=renderCycle();
   else if(curTab==='invest') v.innerHTML=renderInvest();
@@ -572,8 +565,21 @@ function render(){
 /* ---------- Modal ---------- */
 function openModal(html){ $('modal').innerHTML=html; $('mask').classList.add('on'); $('modal').classList.add('on'); }
 function closeModal(){ $('mask').classList.remove('on'); $('modal').classList.remove('on'); }
-function openSheet(){ $('mask2').classList.add('on'); $('sheet').classList.add('on'); }
-function closeSheet(){ $('mask2').classList.remove('on'); $('sheet').classList.remove('on'); }
+/* ---------- 整页表单（输入弹窗的替代：小米浏览器键盘弹起不收缩视口，fixed 弹窗会被盖；改走页面内表单，浏览器保证输入框滚到键盘上方） ---------- */
+let recPage=false, pfOn=false, pfTitle='', pfHtml='';
+function pfHead(title){ return '<div class="c-head" style="margin:2px 2px 10px"><span style="color:var(--cy);cursor:pointer;font-size:14px" onclick="closePageForm()">‹ 返回</span><div class="c-title" style="margin-top:3px">'+title+'</div></div>'; }
+function openPageForm(title,html){ pfTitle=title; pfHtml=html; pfOn=true; render(); }
+function closePageForm(){ if(!pfOn) return; pfOn=false; render(); }
+function recShell(){
+  return '<div class="c-head" style="margin:2px 2px 10px"><span style="color:var(--cy);cursor:pointer;font-size:14px" onclick="closeSheet()">‹ 返回</span><div class="c-title" style="margin-top:3px">记一笔</div></div>'+
+    '<div class="seg" id="segMode">'+
+    '<button data-m="exp" class="'+(REC.mode==='exp'?'on':'')+'" onclick="setRecMode(\'exp\')">支出</button>'+
+    '<button data-m="inc" class="'+(REC.mode==='inc'?'on':'')+'" onclick="setRecMode(\'inc\')">收入</button>'+
+    '<button data-m="mv" class="'+(REC.mode==='mv'?'on':'')+'" onclick="setRecMode(\'mv\')">转入/转出</button></div>'+
+    '<div id="recBox"></div>';
+}
+function openSheet(){ recPage=true; render(); }
+function closeSheet(){ recPage=false; render(); }
 
 /* ================= 首次引导（期初快照） ================= */
 let obStep=0;
@@ -634,11 +640,11 @@ function obNext(){
 }
 function obBack(){ if(obStep>0){ obStep--; renderOnboard(); } }
 function editOnboard(){ obStep=1; renderOnboard(); }
-function openInitImport(){ openModal('<div class="mh">导入初始化包</div><textarea class="inp" id="initTxt" rows="7" placeholder="粘贴 Hermes 给你的初始化 JSON" style="font-size:9px;font-family:var(--mono)"></textarea><div style="display:flex;gap:9px;margin-top:12px"><button class="btn ghost" style="flex:1" onclick="closeModal()">取消</button><button class="btn cy" style="flex:1" onclick="doInitImport()">导入并开始</button></div>'); }
+function openInitImport(){ openPageForm('导入初始化包','<textarea class="inp" id="initTxt" rows="7" placeholder="粘贴 Hermes 给你的初始化 JSON" style="font-size:9px;font-family:var(--mono)"></textarea><div style="font-size:11px;color:var(--txt3)">只覆盖账本数据，不碰手机其它任何东西。</div><div style="display:flex;gap:9px;margin-top:12px"><button class="btn ghost" style="flex:1" onclick="closePageForm()">取消</button><button class="btn cy" style="flex:1" onclick="doInitImport()">导入并开始</button></div>'); }
 function doInitImport(){
   const v=$('initTxt').value; if(!v||!v.trim()){ showToast('粘贴内容为空','warn'); return; }
   try{ const d=JSON.parse(v.trim()); if(!d||d.v!==4){ showToast('不是 v4 初始化包','err'); return; }
-    S=d; S.onboard=true; save(); $('onboard').style.display='none'; closeModal(); render(); showToast('初始化完成 🎉','ok');
+    S=d; S.onboard=true; save(); $('onboard').style.display='none'; closePageForm(); showToast('初始化完成 🎉','ok');
   }catch(e){ showToast('解析失败：'+e.message,'err'); }
 }
 
@@ -671,7 +677,7 @@ function renderRec(){
 }
 function todayInput(){ REC.date=prompt('日期(YYYY-MM-DD)', REC.date||TODAY())||REC.date; }
 /* 分类在分类管理里改动后，若记账面板开着则即时刷新分类 chips */
-function refreshPick(){ try{ if($('sheet')&&$('sheet').classList.contains('on')) renderPickArea(); }catch(e){} }
+function refreshPick(){ try{ if(recPage) renderPickArea(); }catch(e){} }
 function setRecSrc(v){ /* 支出：钱从哪出（活钱/某专项基金/对象付） */
   if(v==='obj'){ REC.payer='obj'; REC.srcFund=''; }
   else{ REC.payer='me'; REC.srcFund=(v==='cash')?'':v.slice(2); }
@@ -748,7 +754,7 @@ function saveRec(){
   vibrate();
   const a=assets();
   if(rec.type==='exp'&&rec.cat==='give'){} 
-  closeSheet(); render();
+  closeSheet();
   showToast('已记 '+money(amt)+(rec.type==='obj'?'（对象付）':''),'ok');
   /* 连记：留在表单 */
   if(REC.mode!=='mv'){ setTimeout(()=>openRecord(REC.mode),60); }
@@ -1023,21 +1029,22 @@ function renderFund(){
   return h;
 }
 
-/* ---------------- 新建 ---------------- */
+/* ---------------- 新建（整页表单：键盘弹起时输入框不会被盖住） ---------------- */
 function newFundPrompt(){
-  openModal('<div class="mh">新建专项基金</div>'+
+  openPageForm('新建专项基金',
     '<div class="field"><div class="fl">名字</div><input class="inp" id="nf_name" placeholder="如：2026国庆旅行 / 办婚礼 / 学习班"></div>'+
     '<div class="field"><div class="fl">目标预算 ¥（可空）</div><input class="inp" id="nf_target" type="number" inputmode="decimal" placeholder="想留到多少，心里有数"></div>'+
     '<div class="field"><div class="fl">她放入 ¥（统计用，不进我的账；可空）</div><input class="inp" id="nf_her" type="number" inputmode="decimal" placeholder="0"></div>'+
-    '<div style="font-size:11px;color:var(--txt3)">对象的钱放进来只做整体统计，不进我的资产/收入，账才不会乱。</div>'+
-    '<div style="display:flex;gap:9px;margin-top:12px"><button class="btn ghost" style="flex:1" onclick="closeModal()">取消</button><button class="btn cy" style="flex:1" onclick="nfCreate()">创建</button></div>');
+    '<div style="font-size:11px;color:var(--txt3);line-height:1.7">对象的钱放进来只做整体统计，不进我的资产/收入，账才不会乱。</div>'+
+    '<div style="display:flex;gap:9px;margin-top:14px"><button class="btn ghost" style="flex:1" onclick="closePageForm()">取消</button><button class="btn cy" style="flex:1" onclick="nfCreate()">创建</button></div>');
+  setTimeout(()=>{ const i=$('nf_name'); if(i){ try{ i.focus(); }catch(e){} } },150);
 }
 function nfCreate(){
   const n=$('nf_name').value.trim(); if(!n){ showToast('起个名字','warn'); return; }
   const t=parseFloat($('nf_target').value)||0, her=parseFloat($('nf_her').value)||0;
   const id='f'+uid().slice(-6);
   S.funds=S.funds||[]; S.funds.push({id,name:n,target:t,herIn:her,created:TODAY()});
-  save(); closeModal(); fundOpen=id; render(); showToast('已建「'+n+'」，可以把活钱放进去了','ok');
+  save(); fundOpen=id; closePageForm(); showToast('已建「'+n+'」，可以把活钱放进去了','ok');
 }
 
 /* ---------------- 详情 ---------------- */
@@ -1176,7 +1183,7 @@ function planForm(id){
     {v:'sv:oth',n:'存其他目标'}
   ];
   const curKind=(cur.type==='mv')?('mv:'+(cur.acc||'ylb')):((cur.type==='sv')?('sv:'+(cur.goal||'car')):'exp');
-  openModal('<div class="mh">'+(p?'编辑':'新增')+'计划项</div>'+
+  openPageForm((p?'编辑':'新增')+'计划项',
     '<div class="field"><div class="fl">名称</div><input class="inp" id="pl_name" value="'+esc(cur.name||'')+'" placeholder="如：给妈妈 / 猫粮 / 黄金定投"></div>'+
     '<div class="field"><div class="fl">每月几号</div><input class="inp" id="pl_day" type="number" inputmode="numeric" min="1" max="28" value="'+(cur.day||1)+'"></div>'+
     '<div class="field"><div class="fl">默认金额</div><input class="inp" id="pl_amt" type="number" inputmode="decimal" value="'+cur.amt+'" placeholder="0"></div>'+
@@ -1184,7 +1191,7 @@ function planForm(id){
     '<div class="field"><div class="fl">支出分类（类型选"支出"时）</div><select class="inp" id="pl_cat">'+allCats().map(c=>'<option value="'+c.k+'"'+(cur.cat===c.k?' selected':'')+'>'+c.e+c.n+'</option>').join('')+'</select></div>'+
     '<label style="display:flex;gap:8px;align-items:center;font-size:13px;color:var(--txt2);margin-bottom:14px"><input type="checkbox" id="pl_flex" '+(cur.flex?'checked':'')+' style="width:15px;height:15px;accent-color:var(--cy)"> 弹性金额（每月到期让我确认实际数）</label>'+
     '<div style="display:flex;gap:9px">'+(p?'<button class="btn mg" style="flex:1" onclick="delPlan(\''+p.id+'\')">删除</button>':'')+
-    '<button class="btn ghost" style="flex:1" onclick="closeModal()">取消</button>'+
+    '<button class="btn ghost" style="flex:1" onclick="closePageForm()">取消</button>'+
     '<button class="btn cy" style="flex:1" onclick="savePlan('+(p?'\''+p.id+'\'':'null')+')">保存</button></div>');
 }
 function savePlan(id){
@@ -1198,9 +1205,9 @@ function savePlan(id){
   if(type==='sv') obj.goal=sub||'car';
   if(id){ const p=S.plans.find(x=>x.id===id); if(p) Object.assign(p,obj); }
   else { S.plans=S.plans||[]; S.plans.push(Object.assign({id:uid(),on:true,lastDone:''},obj)); }
-  save(); closeModal(); render(); showToast('已保存','ok');
+  save(); closePageForm(); showToast('已保存','ok');
 }
-function delPlan(id){ if(!confirm('删除这个计划？')) return; S.plans=(S.plans||[]).filter(x=>x.id!==id); save(); closeModal(); render(); }
+function delPlan(id){ if(!confirm('删除这个计划？')) return; S.plans=(S.plans||[]).filter(x=>x.id!==id); save(); closePageForm(); }
 function togglePlan(id){ const p=(S.plans||[]).find(x=>x.id===id); if(!p) return; p.on=!p.on; if(!p.on) p.lastDone=TODAY().slice(0,7); save(); render(); }
 function planRowHtml(x){
   const st=plansDue().find(d=>d.p.id===x.id);
@@ -1322,8 +1329,8 @@ function addHolOne(d,work){
 }
 function rmHol(d,work){ if(work) S.customWork=(S.customWork||[]).filter(x=>x!==d); else S.customHol=(S.customHol||[]).filter(x=>x!==d); save(); render(); }
 function clearAll(){ if(!confirm('清空全部数据？（备份先导出）')) return; localStorage.removeItem(KEY); location.reload(); }
-function importModal(){ openModal('<div class="mh">恢复备份</div><textarea class="inp" id="impTxt" rows="8" placeholder="把备份 JSON 粘贴进来" style="font-size:10px;font-family:var(--mono)"></textarea><div style="display:flex;gap:9px;margin-top:12px"><button class="btn ghost" style="flex:1" onclick="closeModal()">取消</button><button class="btn cy" style="flex:1" onclick="doImport()">恢复</button></div>'); }
-function doImport(){ const v=$('impTxt').value; if(importJSON(v)){ closeModal(); } }
+function importModal(){ openPageForm('恢复备份','<textarea class="inp" id="impTxt" rows="8" placeholder="把备份 JSON 粘贴进来" style="font-size:10px;font-family:var(--mono)"></textarea><div style="display:flex;gap:9px;margin-top:12px"><button class="btn ghost" style="flex:1" onclick="closePageForm()">取消</button><button class="btn cy" style="flex:1" onclick="doImport()">恢复</button></div>'); }
+function doImport(){ const v=$('impTxt').value; if(importJSON(v)){ closePageForm(); } }
 
 /* ================================================================
    v4 — boot：启动装配
