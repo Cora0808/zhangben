@@ -182,7 +182,7 @@ nav button .ni{font-size:19px;line-height:1}
    ================================================================ */
 /* ---------- 常量 ---------- */
 const KEY='wb_coach_v1';
-const APP_VER='v4.2.4';
+const APP_VER='v4.2.5';
 const TODAY=()=>{const d=new Date();return d.getFullYear()+'-'+P(d.getMonth()+1)+'-'+P(d.getDate());};
 const P=n=>n<10?'0'+n:''+n;
 const YM=dstr=>String(dstr||'').slice(0,7);
@@ -817,7 +817,7 @@ function renderHome(){
   const a=assets(), toNext=daysToNextPay(), cyc=recsInCycle();
   const inc=periodIn(cyc), exp=cyc.filter(r=>r.type==='exp'&&!r.srcFund).reduce((s,r)=>s+(+r.amt||0),0);
   const daily=toNext>0?Math.round(a.cash/toNext*100)/100:null;
-  const recent=S.recs.slice().sort((x,y)=>(y.d+ (y.ts||0)/1e13)-(x.d+(x.ts||0)/1e13)).slice(0,6);
+  const recent=S.recs.slice().sort((x,y)=>cmpD(y.d,x.d)||(y.ts||0)-(x.ts||0)).slice(0,6);
   let h='';
   /* 资产 hud */
   h+='<div class="card gr-b"><div class="c-head"><div class="c-title">FUND / 资金</div><div class="c-sub">'+cycleLabel()+' · 距发薪 '+toNext+' 天</div></div>'+
