@@ -63,16 +63,21 @@ for f in ["icon-192-v2.png","icon-512-v2.png","apple-touch-icon.png"]:
 manifest = {"name":"打工人资金教练","short_name":"资金教练","description":"记账·预算·理财·教练，赛博风离线资金管家","lang":"zh-CN","start_url":"index.html","scope":"./","display":"standalone","orientation":"portrait","background_color":"#05070c","theme_color":"#05070c","icons":[{"src":"icon-192-v2.png","sizes":"192x192","type":"image/png"},{"src":"icon-512-v2.png","sizes":"512x512","type":"image/png","purpose":"any"}]}
 import json
 (OUT/"manifest.json").write_text(json.dumps(manifest,ensure_ascii=False),encoding="utf-8")
-# sw.js 简单版
-sw = """const C='coach-v4-4';const F=['index.html','manifest.json','icon-192-v2.png','icon-512-v2.png'];
+# sw.js: 导航/资源一律「缓存先秒开 + 后台静默刷网络」；网络慢不再白屏等
+# 发新版仍能提示：页面内自更新轮询 version.json?v=时间戳(每次唯一URL→必走网络) + forceUpdate 清缓存刷新
+# 缓存名含版本号 → 发版即换新 cache，旧 cache 由 activate 清理，天然不卡旧版
+_ver = re.search(r"APP_VER='([^']+)'", (APP/"core-a.js").read_text(encoding="utf-8")).group(1)
+sw = """const C='coach-"""+_ver+"""';const F=['index.html','manifest.json','icon-192-v2.png','icon-512-v2.png'];
 self.addEventListener('install',e=>{e.waitUntil(caches.open(C).then(c=>c.addAll(F)).then(()=>self.skipWaiting()))});
 self.addEventListener('activate',e=>{e.waitUntil(caches.keys().then(ks=>Promise.all(ks.filter(k=>k!==C).map(k=>caches.delete(k)))).then(()=>self.clients.claim()))});
 self.addEventListener('fetch',e=>{ if(e.request.method!=='GET')return;
-  const req=e.request, url=req.url, isNav=req.mode==='navigate'||url.indexOf('index.html')>=0;
-  if(isNav){ e.respondWith(fetch(req).then(r=>{const cl=r.clone();caches.open(C).then(c=>c.put(req,cl)).catch(()=>{});return r;}).catch(()=>caches.match(req).then(h=>h||caches.match('index.html')))); return; }
-  e.respondWith(caches.match(req).then(hit=>{ const nw=fetch(req).then(r=>{const cl=r.clone();caches.open(C).then(c=>c.put(req,cl)).catch(()=>{});return r;}).catch(()=>null); return hit||nw; })); });"""
+  const req=e.request, isNav=req.mode==='navigate'||req.url.indexOf('index.html')>=0;
+  e.respondWith(caches.match(req).then(h=>h||(isNav?caches.match('index.html'):null)).catch(()=>null).then(hit=>{
+    if(hit){ fetch(req).then(r=>{if(r&&r.ok){const cl=r.clone();caches.open(C).then(c=>c.put(req,cl)).catch(()=>{});}}).catch(()=>{}); return hit; }
+    return fetch(req).then(r=>{if(r&&r.ok){const cl=r.clone();caches.open(C).then(c=>c.put(req,cl)).catch(()=>{});} return r;}).catch(()=>hit);
+  })); });"""
 (OUT/"sw.js").write_text(sw,encoding="utf-8")
-(OUT/"version.json").write_text(json.dumps({"ver":"v4.0.0"}),encoding="utf-8")
+(OUT/"version.json").write_text(json.dumps({"ver":_ver}),encoding="utf-8")
 (OUT/"holidays.json").write_text(json.dumps({"year":2026,"hol":[],"work":[]},ensure_ascii=False),encoding="utf-8")
 
 # JS 语法检查（抽取 script）
