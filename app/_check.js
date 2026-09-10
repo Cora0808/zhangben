@@ -692,7 +692,21 @@ function recRow(r){
   return '<div class="row"><div class="ic" style="background:rgba(255,255,255,.05)">'+ic+'</div><div class="mid"><div class="t1">'+esc(t1)+'</div><div class="t2">'+esc(t2)+'</div></div><div class="amt '+(r.type==='inc'||r.type==='sv'&&r.dir==='out'||r.type==='mv'&&r.dir==='out'||r.type==='fd'&&r.dir==='out'?'':'mg')+'" style="color:'+c+'">'+(r.type==='exp'&&r.srcFund?'−':outAmt)+fmt(r.amt)+'</div><span class="del-rec" onclick="delRec(\''+r.id+'\')">✕</span></div>';
 }
 function useTpl(i){ const t=(window._tpls=topTpls())[i]; if(!t) return; S.recs.push({id:uid(),d:TODAY(),amt:t.amt,note:t.note,cat:t.cat,type:'exp',ts:nowTs()}); save(); render(); showToast('已记 '+esc(t.note)+' '+money(t.amt),'ok'); }
-function delRec(id){ if(!confirm('删除这笔？')) return; S.recs=S.recs.filter(r=>r.id!==id); save(); render(); }
+function delRec(id){
+  const r=S.recs.find(x=>x.id===id); if(!r) return;
+  let info='';
+  if(r.type==='inc') info='💰 收入 '+money(r.amt);
+  else if(r.type==='exp'&&r.srcFund) info='🎒 专项花销 '+money(r.amt);
+  else if(r.type==='exp') info='💸 支出 '+money(r.amt);
+  else if(r.type==='obj') info='💝 对象付 '+money(r.amt);
+  else if(r.type==='mv') info=(r.dir==='in'?'📥 买入':'📤 赎回')+' '+money(r.amt);
+  else if(r.type==='sv') info=(r.dir==='in'?'🏦 存入':'↩️ 转回')+' '+money(r.amt);
+  else if(r.type==='fd') info=(r.dir==='in'?'📥 专项放入':(r.dir==='out'?'↩️ 专项退回':'🔁 结转'))+' '+money(r.amt);
+  else info='💳 '+money(r.amt);
+  const note=r.note?' · '+esc(r.note):'';
+  if(!confirm('删除这笔？\n\n'+info+note+'\n'+r.d)) return;
+  S.recs=S.recs.filter(x=>x.id!==id); save(); render();
+}
 /* ---------------- 周期页 ---------------- */
 function renderCycle(){
   const toNext=daysToNextPay(), a=assets(), cyc=recsInCycle();
