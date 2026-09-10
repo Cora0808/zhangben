@@ -103,9 +103,9 @@ function recRow(r){
     else{ ic=r.dir==='in'?'📥':'↩️'; c='var(--or)'; t1=(r.note||(r.dir==='in'?'放入':'退回'))+' · 专项·'+fundName(r.fund); t2=r.d; } }
   const outAmt=(r.type==='inc'||r.type==='sv'&&r.dir==='out'||r.type==='mv'&&r.dir==='out'||r.type==='fd'&&(r.dir==='out'||r.dir==='xf'))?'+':'−';
   if(r.type==='fd'&&r.dir==='xf'){ /* 结转行：金额不带±便于读(两方向都显示数额) */
-    return '<div class="row"><div class="ic" style="background:rgba(255,255,255,.05)">'+ic+'</div><div class="mid"><div class="t1">'+esc(t1)+'</div><div class="t2">'+esc(t2)+'</div></div><div class="amt" style="color:'+c+'">'+fmt(r.amt)+'</div></div>';
+    return '<div class="row"><div class="ic" style="background:rgba(255,255,255,.05)">'+ic+'</div><div class="mid"><div class="t1">'+esc(t1)+'</div><div class="t2">'+esc(t2)+'</div></div><div class="amt" style="color:'+c+'">'+fmt(r.amt)+'</div><span class="del-rec" onclick="delRec(\''+r.id+'\')">✕</span></div>';
   }
-  return '<div class="row"><div class="ic" style="background:rgba(255,255,255,.05)">'+ic+'</div><div class="mid"><div class="t1">'+esc(t1)+'</div><div class="t2">'+esc(t2)+'</div></div><div class="amt '+(r.type==='inc'||r.type==='sv'&&r.dir==='out'||r.type==='mv'&&r.dir==='out'||r.type==='fd'&&r.dir==='out'?'':'mg')+'" style="color:'+c+'">'+(r.type==='exp'&&r.srcFund?'−':outAmt)+fmt(r.amt)+'</div></div>';
+  return '<div class="row"><div class="ic" style="background:rgba(255,255,255,.05)">'+ic+'</div><div class="mid"><div class="t1">'+esc(t1)+'</div><div class="t2">'+esc(t2)+'</div></div><div class="amt '+(r.type==='inc'||r.type==='sv'&&r.dir==='out'||r.type==='mv'&&r.dir==='out'||r.type==='fd'&&r.dir==='out'?'':'mg')+'" style="color:'+c+'">'+(r.type==='exp'&&r.srcFund?'−':outAmt)+fmt(r.amt)+'</div><span class="del-rec" onclick="delRec(\''+r.id+'\')">✕</span></div>';
 }
 function useTpl(i){ const t=(window._tpls=topTpls())[i]; if(!t) return; S.recs.push({id:uid(),d:TODAY(),amt:t.amt,note:t.note,cat:t.cat,type:'exp',ts:nowTs()}); save(); render(); showToast('已记 '+esc(t.note)+' '+money(t.amt),'ok'); }
 function delRec(id){ if(!confirm('删除这笔？')) return; S.recs=S.recs.filter(r=>r.id!==id); save(); render(); }

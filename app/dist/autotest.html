@@ -80,6 +80,8 @@ main::-webkit-scrollbar{display:none}
 .row .mid .t2{font-size:10.5px;color:var(--txt3);margin-top:1px}
 .row .amt{font-family:var(--mono);font-weight:600;font-size:14px}
 .row .amt.mg{color:var(--mg)}
+.row .del-rec{width:24px;height:24px;border-radius:8px;font-size:11px;line-height:24px;text-align:center;color:var(--txt3);cursor:pointer;flex-shrink:0}
+.row .del-rec:active{background:rgba(255,46,136,.15);color:var(--mg)}
 
 /* 记账 sheet */
 .sheet{position:fixed;left:0;right:0;bottom:0;z-index:68;background:var(--bg2);border-top:1px solid var(--line2);border-radius:18px 18px 0 0;padding:14px 14px calc(14px + var(--safe-b));transform:translateY(105%);transition:transform .22s ease;max-height:88vh;overflow-y:auto}
@@ -182,7 +184,7 @@ nav button .ni{font-size:19px;line-height:1}
    ================================================================ */
 /* ---------- 常量 ---------- */
 const KEY='wb_coach_v1';
-const APP_VER='v4.2.5';
+const APP_VER='v4.2.6';
 const TODAY=()=>{const d=new Date();return d.getFullYear()+'-'+P(d.getMonth()+1)+'-'+P(d.getDate());};
 const P=n=>n<10?'0'+n:''+n;
 const YM=dstr=>String(dstr||'').slice(0,7);
@@ -865,9 +867,9 @@ function recRow(r){
     else{ ic=r.dir==='in'?'📥':'↩️'; c='var(--or)'; t1=(r.note||(r.dir==='in'?'放入':'退回'))+' · 专项·'+fundName(r.fund); t2=r.d; } }
   const outAmt=(r.type==='inc'||r.type==='sv'&&r.dir==='out'||r.type==='mv'&&r.dir==='out'||r.type==='fd'&&(r.dir==='out'||r.dir==='xf'))?'+':'−';
   if(r.type==='fd'&&r.dir==='xf'){ /* 结转行：金额不带±便于读(两方向都显示数额) */
-    return '<div class="row"><div class="ic" style="background:rgba(255,255,255,.05)">'+ic+'</div><div class="mid"><div class="t1">'+esc(t1)+'</div><div class="t2">'+esc(t2)+'</div></div><div class="amt" style="color:'+c+'">'+fmt(r.amt)+'</div></div>';
+    return '<div class="row"><div class="ic" style="background:rgba(255,255,255,.05)">'+ic+'</div><div class="mid"><div class="t1">'+esc(t1)+'</div><div class="t2">'+esc(t2)+'</div></div><div class="amt" style="color:'+c+'">'+fmt(r.amt)+'</div><span class="del-rec" onclick="delRec(\''+r.id+'\')">✕</span></div>';
   }
-  return '<div class="row"><div class="ic" style="background:rgba(255,255,255,.05)">'+ic+'</div><div class="mid"><div class="t1">'+esc(t1)+'</div><div class="t2">'+esc(t2)+'</div></div><div class="amt '+(r.type==='inc'||r.type==='sv'&&r.dir==='out'||r.type==='mv'&&r.dir==='out'||r.type==='fd'&&r.dir==='out'?'':'mg')+'" style="color:'+c+'">'+(r.type==='exp'&&r.srcFund?'−':outAmt)+fmt(r.amt)+'</div></div>';
+  return '<div class="row"><div class="ic" style="background:rgba(255,255,255,.05)">'+ic+'</div><div class="mid"><div class="t1">'+esc(t1)+'</div><div class="t2">'+esc(t2)+'</div></div><div class="amt '+(r.type==='inc'||r.type==='sv'&&r.dir==='out'||r.type==='mv'&&r.dir==='out'||r.type==='fd'&&r.dir==='out'?'':'mg')+'" style="color:'+c+'">'+(r.type==='exp'&&r.srcFund?'−':outAmt)+fmt(r.amt)+'</div><span class="del-rec" onclick="delRec(\''+r.id+'\')">✕</span></div>';
 }
 function useTpl(i){ const t=(window._tpls=topTpls())[i]; if(!t) return; S.recs.push({id:uid(),d:TODAY(),amt:t.amt,note:t.note,cat:t.cat,type:'exp',ts:nowTs()}); save(); render(); showToast('已记 '+esc(t.note)+' '+money(t.amt),'ok'); }
 function delRec(id){ if(!confirm('删除这笔？')) return; S.recs=S.recs.filter(r=>r.id!==id); save(); render(); }

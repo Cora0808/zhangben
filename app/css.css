@@ -64,6 +64,8 @@ main::-webkit-scrollbar{display:none}
 .row .mid .t2{font-size:10.5px;color:var(--txt3);margin-top:1px}
 .row .amt{font-family:var(--mono);font-weight:600;font-size:14px}
 .row .amt.mg{color:var(--mg)}
+.row .del-rec{width:24px;height:24px;border-radius:8px;font-size:11px;line-height:24px;text-align:center;color:var(--txt3);cursor:pointer;flex-shrink:0}
+.row .del-rec:active{background:rgba(255,46,136,.15);color:var(--mg)}
 
 /* 记账 sheet */
 .sheet{position:fixed;left:0;right:0;bottom:0;z-index:68;background:var(--bg2);border-top:1px solid var(--line2);border-radius:18px 18px 0 0;padding:14px 14px calc(14px + var(--safe-b));transform:translateY(105%);transition:transform .22s ease;max-height:88vh;overflow-y:auto}
