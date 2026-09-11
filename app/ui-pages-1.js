@@ -55,6 +55,7 @@ function renderHome(){
   const a=assets(), toNext=daysToNextPay(), cyc=recsInCycle();
   const inc=periodIn(cyc), exp=cyc.filter(r=>r.type==='exp'&&!r.srcFund).reduce((s,r)=>s+(+r.amt||0),0);
   const daily=toNext>0?Math.round(a.cash/toNext*100)/100:null;
+  const todayExp=S.recs.filter(r=>r.type==='exp'&&!r.srcFund&&r.d===TODAY()).reduce((s,r)=>s+(+r.amt||0),0);
   const recent=S.recs.slice().sort((x,y)=>cmpD(y.d,x.d)||(y.ts||0)-(x.ts||0)).slice(0,6);
   let h='';
   /* 资产 hud */
@@ -65,7 +66,8 @@ function renderHome(){
   /* 本周期到账/支出 */
   h+='<div class="hud"><div class="cell"><div class="k">本周期到账</div><div class="v gr">'+money(inc)+'</div></div>'+
      '<div class="cell"><div class="k">本周期支出</div><div class="v '+(exp>daily?'mg':'')+'">'+money(exp)+'</div></div>'+
-     '<div class="cell"><div class="k">对方代付</div><div class="v pu">'+money(objPaidTotal())+'</div></div></div>';
+     '<div class="cell"><div class="k">对方代付</div><div class="v pu">'+money(objPaidTotal())+'</div></div></div>'+
+     '<div style="display:flex;gap:16px;font-size:11px;color:var(--txt3);margin:1px 0 0 4px">今日支出 <b style="color:'+(todayExp>0?'var(--mg)':'var(--txt3)')+'">'+money(todayExp)+'</b></div>';
   /* 教练 feed */
   const feed=coachFeed();
   if(feed.length){
@@ -95,17 +97,18 @@ function assetChip(n,m,c,extra){ return '<div class="a '+(extra||'')+'"><div cla
 function recRow(r){
   let ic='💸',c='var(--txt)',t1='',t2='';
   if(r.type==='inc'){ const si=INCS.find(x=>x.k===r.src)||{}; ic='💰'; c='var(--gr)'; t1=si.n||'收入'; t2=(r.note||TODAY())&&(r.d); }
+  else if(r.type==='reimb'){ ic='💰'; c='var(--cy)'; t1=(r.note||'报销到账'); t2='报销 · '+r.d; }
   else if(r.type==='exp'&&r.srcFund){ ic='🎒'; c='var(--or)'; t1=r.note||'专项花销'; t2='专项·'+fundName(r.srcFund)+(r.cat?' · '+catInfo(r.cat).n:'')+' · '+r.d; }
   else if(r.type==='exp'||r.type==='obj'){ const ci=catInfo(r.cat); ic=ci.e; c=r.type==='obj'?'var(--pu)':'var(--mg)'; t1=r.note||ci.n; t2=ci.n+(r.type==='obj'?' · 对象付':'')+' · '+r.d; }
   else if(r.type==='mv'){ const an=(r.acc==='gold'?'黄金':'余利宝'); ic=r.dir==='in'?'📥':'📤'; c=r.dir==='in'?'var(--or)':'var(--cy)'; t1=(r.note||(r.dir==='in'?'买入':'赎回'))+' '+an; t2=r.d; }
   else if(r.type==='sv'){ const gn=(goalOf(r.goal)||{name:r.goal==='car'?'买车基金':'代存'}).name; ic=r.dir==='in'?'🏦':'↩️'; c=r.dir==='in'?'var(--pu)':'var(--gr)'; t1=(r.note||gn)+(r.dir==='in'?' 存入':' 转回'); t2=r.d; }
   else if(r.type==='fd'){ if(r.dir==='xf'){ ic='🔁'; c='var(--txt2)'; t1='结转 '+(r.note||(fundName(r.fund)+'→'+fundName(r.to))); t2=r.d; }
     else{ ic=r.dir==='in'?'📥':'↩️'; c='var(--or)'; t1=(r.note||(r.dir==='in'?'放入':'退回'))+' · 专项·'+fundName(r.fund); t2=r.d; } }
-  const outAmt=(r.type==='inc'||r.type==='sv'&&r.dir==='out'||r.type==='mv'&&r.dir==='out'||r.type==='fd'&&(r.dir==='out'||r.dir==='xf'))?'+':'−';
+  const outAmt=(r.type==='inc'||r.type==='reimb'||r.type==='sv'&&r.dir==='out'||r.type==='mv'&&r.dir==='out'||r.type==='fd'&&(r.dir==='out'||r.dir==='xf'))?'+':'−';
   if(r.type==='fd'&&r.dir==='xf'){ /* 结转行：金额不带±便于读(两方向都显示数额) */
     return '<div class="row"><div class="ic" style="background:rgba(255,255,255,.05)">'+ic+'</div><div class="mid"><div class="t1">'+esc(t1)+'</div><div class="t2">'+esc(t2)+'</div></div><div class="amt" style="color:'+c+'">'+fmt(r.amt)+'</div><span class="del-rec" onclick="delRec(\''+r.id+'\')">✕</span></div>';
   }
-  return '<div class="row"><div class="ic" style="background:rgba(255,255,255,.05)">'+ic+'</div><div class="mid"><div class="t1">'+esc(t1)+'</div><div class="t2">'+esc(t2)+'</div></div><div class="amt '+(r.type==='inc'||r.type==='sv'&&r.dir==='out'||r.type==='mv'&&r.dir==='out'||r.type==='fd'&&r.dir==='out'?'':'mg')+'" style="color:'+c+'">'+(r.type==='exp'&&r.srcFund?'−':outAmt)+fmt(r.amt)+'</div><span class="del-rec" onclick="delRec(\''+r.id+'\')">✕</span></div>';
+  return '<div class="row"><div class="ic" style="background:rgba(255,255,255,.05)">'+ic+'</div><div class="mid"><div class="t1">'+esc(t1)+'</div><div class="t2">'+esc(t2)+'</div></div><div class="amt '+(r.type==='inc'||r.type==='reimb'||r.type==='sv'&&r.dir==='out'||r.type==='mv'&&r.dir==='out'||r.type==='fd'&&r.dir==='out'?'':'mg')+'" style="color:'+c+'">'+(r.type==='exp'&&r.srcFund?'−':outAmt)+fmt(r.amt)+'</div><span class="del-rec" onclick="delRec(\''+r.id+'\')">✕</span></div>';
 }
 function useTpl(i){ const t=(window._tpls=topTpls())[i]; if(!t) return; S.recs.push({id:uid(),d:TODAY(),amt:t.amt,note:t.note,cat:t.cat,type:'exp',ts:nowTs()}); save(); render(); showToast('已记 '+esc(t.note)+' '+money(t.amt),'ok'); }
 function delRec(id){
@@ -124,28 +127,73 @@ function delRec(id){
   S.recs=S.recs.filter(x=>x.id!==id); save(); render();
 }
 /* ---------------- 周期页 ---------------- */
+/* 统计时间范围：本周期(默认)/今日/本周/本月/近3月/今年/自定义 */
+let cycleFilter={mode:'cycle',from:'',to:''};
+function setCycleFilter(mode){
+  if(mode==='custom'){
+    const f=prompt('开始日期 YYYY-MM-DD',cycleFilter.from||addDateStr(TODAY(),-30));
+    if(!f) return;
+    const t=prompt('结束日期 YYYY-MM-DD（含当天）',cycleFilter.to||TODAY());
+    if(!t) return;
+    cycleFilter.from=f.trim(); cycleFilter.to=t.trim();
+  }
+  cycleFilter.mode=mode; render();
+}
+function recsInFilter(){
+  const all=S.recs||[], m=cycleFilter.mode;
+  if(m==='cycle') return recsInCycle();
+  if(m==='today') return all.filter(r=>r.d===TODAY());
+  if(m==='month') return all.filter(r=>YM(r.d)===YM(TODAY()));
+  if(m==='week'){ const d=new Date(TODAY()); const wd=d.getDay(); const mon=new Date(d); mon.setDate(d.getDate()-(wd===0?6:wd-1));
+    const ms=mon.getFullYear()+'-'+P(mon.getMonth()+1)+'-'+P(mon.getDate()); return all.filter(r=>r.d>=ms&&r.d<=TODAY()); }
+  if(m==='year') return all.filter(r=>r.d.slice(0,4)===TODAY().slice(0,4));
+  if(m==='q3'){ const d=new Date(TODAY()); d.setMonth(d.getMonth()-3);
+    const ms=d.getFullYear()+'-'+P(d.getMonth()+1)+'-'+P(d.getDate()); return all.filter(r=>r.d>=ms&&r.d<=TODAY()); }
+  if(m==='custom') return all.filter(r=>r.d>=cycleFilter.from&&r.d<=cycleFilter.to);
+  return recsInCycle();
+}
+function filterLabel(){
+  const m=cycleFilter.mode;
+  if(m==='cycle') return cycleLabel();
+  if(m==='today') return '今日 '+TODAY();
+  if(m==='month') return TODAY().slice(0,7).replace('-','年')+'月';
+  if(m==='week') return '本周 周一~'+TODAY();
+  if(m==='year') return TODAY().slice(0,4)+'年';
+  if(m==='q3') return '近3月 ~'+TODAY();
+  if(m==='custom') return cycleFilter.from+' ~ '+cycleFilter.to;
+  return '';
+}
 function renderCycle(){
-  const toNext=daysToNextPay(), a=assets(), cyc=recsInCycle();
+  const cyc=recsInFilter();
+  const toNext=daysToNextPay(), a=assets();
   const inc=periodIn(cyc);
   const exps=cyc.filter(r=>r.type==='exp'&&!r.srcFund);
   const exp=exps.reduce((s,r)=>s+(+r.amt||0),0);
   const objs=cyc.filter(r=>r.type==='obj').reduce((s,r)=>s+(+r.amt||0),0);
   const fs=fundsSpentIn(cyc);
+  const reimbs=cyc.filter(r=>r.type==='reimb').reduce((s,r)=>s+(+r.amt||0),0);
   const byCat={}; exps.forEach(r=>{ byCat[r.cat]=(byCat[r.cat]||0)+(+r.amt||0); });
   const sorted=Object.keys(byCat).sort((x,y)=>byCat[y]-byCat[x]);
   const maxV=sorted.length?byCat[sorted[0]]:0;
   const rows=cyc.slice().sort((x,y)=>cmpD(y.d,x.d)||(y.ts||0)-(x.ts||0));
   let h='';
-  h+='<div class="card cy-b"><div class="c-head"><div class="c-title">CYCLE / 发薪周期</div><div class="c-sub">'+cycleLabel()+'</div></div>'+
-     '<div style="display:flex;align-items:baseline;gap:10px;flex-wrap:wrap"><span style="color:var(--txt3);font-size:12px">距下次发薪</span><span class="big-num" style="font-size:30px;color:var(--cy)">'+toNext+' 天</span>'+
-     '<span style="font-size:12px;color:var(--txt2)">(下次 '+nextPayday()+')</span></div>'+
-     '<div style="font-size:12px;color:var(--txt3);margin-top:8px">到账 <b style="color:var(--gr)">'+money(inc)+'</b> · 支出 <b style="color:var(--mg)">'+money(exp)+'</b>'+(objs?' · 对象付 <b style="color:var(--pu)">'+money(objs)+'</b>':'')+(fs?' · 专项花销 <b style="color:var(--or)">'+money(fs)+'</b>':'')+'</div></div>';
+  /* 时间范围选择器 */
+  h+='<div class="card" style="padding:7px 10px"><div style="display:flex;gap:5px;overflow-x:auto;font-size:11px">'+
+     ['本周期','今日','本周','本月','近3月','今年','自定义'].map((l,i)=>{
+       const modes=['cycle','today','week','month','q3','year','custom'];
+       return '<button class="mini '+(cycleFilter.mode===modes[i]?'cy':'')+'" style="flex-shrink:0" onclick="setCycleFilter(\''+modes[i]+'\')">'+l+'</button>';
+     }).join('')+'</div></div>';
+  /* 统计卡 */
+  h+='<div class="card cy-b"><div class="c-head"><div class="c-title">'+(cycleFilter.mode==='cycle'?'CYCLE / 发薪周期':'STAT / 统计')+'</div><div class="c-sub">'+filterLabel()+'</div></div>'+
+     (cycleFilter.mode==='cycle'?'<div style="display:flex;align-items:baseline;gap:10px;flex-wrap:wrap"><span style="color:var(--txt3);font-size:12px">距下次发薪</span><span class="big-num" style="font-size:30px;color:var(--cy)">'+toNext+' 天</span>'+
+     '<span style="font-size:12px;color:var(--txt2)">(下次 '+nextPayday()+')</span></div>':'')+
+     '<div style="font-size:12px;color:var(--txt3);margin-top:8px">到账 <b style="color:var(--gr)">'+money(inc)+'</b> · 支出 <b style="color:var(--mg)">'+money(exp)+'</b>'+(objs?' · 对象付 <b style="color:var(--pu)">'+money(objs)+'</b>':'')+(fs?' · 专项花销 <b style="color:var(--or)">'+money(fs)+'</b>':'')+(reimbs?' · 报销到账 <b style="color:var(--cy)">'+money(reimbs)+'</b>':'')+'</div></div>';
   h+='<div class="card"><div class="c-head"><div class="c-title">SPEND / 花在哪</div></div>';
-  if(!sorted.length) h+='<div class="empty">这个周期还没有支出</div>';
+  if(!sorted.length) h+='<div class="empty">这段时间没有支出</div>';
   else sorted.slice(0,6).forEach(k=>{ const v=byCat[k], p=maxV?Math.round(v/maxV*100):0, ci=catInfo(k); h+='<div style="display:flex;align-items:center;gap:8px;margin-bottom:7px"><span style="width:70px;font-size:12px;flex-shrink:0">'+ci.e+' '+ci.n+'</span><div class="bar" style="flex:1"><i style="width:'+p+'%;background:'+catCol(k)+'"></i></div><span style="font-family:var(--mono);font-size:12px">'+money(v)+'</span></div>'; });
   h+='<button class="btn ghost" style="margin-top:10px" onclick="copyDigest()">📤 生成简报发教练</button></div>';
   h+='<div class="c-head" style="margin:12px 2px 2px"><div class="c-title">FLOW / 流水</div><div class="c-sub">'+rows.length+' 笔</div></div>';
-  if(!rows.length) h+='<div class="empty">本周期暂无记录</div>';
+  if(!rows.length) h+='<div class="empty">这段时间暂无记录</div>';
   else h+='<div class="card" style="padding-top:4px">'+rows.map(recRow).join('')+'</div>';
   return h;
 }

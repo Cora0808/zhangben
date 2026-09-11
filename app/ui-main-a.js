@@ -172,7 +172,8 @@ function renderPickArea(){
   }
   else if(REC.mode==='inc'){
     h+=INCS.map(s=>'<div class="chip '+(REC.src===s.k?'on':'')+'" style="'+(REC.src===s.k?'background:var(--gr);color:#04121a;font-weight:700':'')+'" onclick="REC.src=\''+s.k+'\';renderPickArea()">'+s.n+'</div>').join('');
-    h+='<div style="font-size:11px;color:var(--txt3);margin-top:7px">到账=活钱，都能花。来源只是标签（统计用）</div>';
+    h+='<div style="font-size:11px;color:var(--txt3);margin-top:7px">'+
+       (REC.src==='reimb'?'报销到账=活钱回来，不计入周期收入统计':'到账=活钱，都能花。来源只是标签（统计用）')+'</div>';
   }
   else{ /* mv */
     h+='<div class="chips" style="margin-bottom:8px">'+
@@ -205,7 +206,10 @@ function saveRec(){
     if(REC.payer==='obj'){ rec.type='obj'; rec.cat=REC.cat; }
     else { rec.type='exp'; rec.cat=REC.cat; if(REC.srcFund) rec.srcFund=REC.srcFund; else if(note) smartLearn(note,REC.cat); }
   }
-  else if(REC.mode==='inc'){ rec.type='inc'; rec.src=REC.src; }
+  else if(REC.mode==='inc'){
+    if(REC.src==='reimb'){ rec.type='reimb'; rec.src='reimb'; }
+    else { rec.type='inc'; rec.src=REC.src; }
+  }
   else{ /* mv */
     if(REC.mvTo.slice(0,2)==='f:'){ /* 专项基金：放入=活钱→锅；转出=退回活钱 */
       rec.type='fd'; rec.dir=REC.mvDir; rec.fund=REC.mvTo.slice(2); rec.note=note||(REC.mvDir==='in'?'放入':'退回');

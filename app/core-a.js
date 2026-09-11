@@ -3,7 +3,7 @@
    ================================================================ */
 /* ---------- 常量 ---------- */
 const KEY='wb_coach_v1';
-const APP_VER='v4.2.6b';
+const APP_VER='v4.2.7';
 const TODAY=()=>{const d=new Date();return d.getFullYear()+'-'+P(d.getMonth()+1)+'-'+P(d.getDate());};
 const P=n=>n<10?'0'+n:''+n;
 const YM=dstr=>String(dstr||'').slice(0,7);
@@ -58,7 +58,7 @@ function catCol(k){ const uc=findUserCat(k); if(uc&&uc.c) return uc.c; return cC
 /* 收入来源：全部到账=活钱 */
 const INCS=[
   {k:'salary',n:'工资'},{k:'help',n:'家人接济'},{k:'back',n:'存款转回(家人返我)'},
-  {k:'bonus',n:'奖金'},{k:'other',n:'其他收入'}
+  {k:'bonus',n:'奖金'},{k:'reimb',n:'报销到账'},{k:'other',n:'其他收入'}
 ];
 /* 理财/存储账户 */
 const ACCS=[
@@ -119,6 +119,7 @@ function cashNow(){
   S.recs.forEach(r=>{
     if(r.type==='exp'){ if(!r.srcFund) c-=+r.amt||0; }        /* 专项花销早已拨出，不再扣活钱 */
     else if(r.type==='inc') c+=+r.amt||0;
+    else if(r.type==='reimb') c+=+r.amt||0;
     else if(r.type==='mv'){ if(r.dir==='in') c-=+r.amt||0; else c+=+r.amt||0; }
     else if(r.type==='sv'){ if(r.dir==='in') c-=+r.amt||0; else c+=+r.amt||0; }
     else if(r.type==='fd'){ if(r.dir==='in') c-=+r.amt||0; else if(r.dir==='out') c+=+r.amt||0; } /* xf 基金间结转不动活钱 */
