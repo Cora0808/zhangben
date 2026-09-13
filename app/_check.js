@@ -4,7 +4,7 @@
    ================================================================ */
 /* ---------- 常量 ---------- */
 const KEY='wb_coach_v1';
-const APP_VER='v4.2.7';
+const APP_VER='v4.2.8';
 const TODAY=()=>{const d=new Date();return d.getFullYear()+'-'+P(d.getMonth()+1)+'-'+P(d.getDate());};
 const P=n=>n<10?'0'+n:''+n;
 const YM=dstr=>String(dstr||'').slice(0,7);
@@ -114,6 +114,7 @@ function bootData(){
  *  inc 收入到账            cash+（src 只作标签）
  *  mv  理财搬移 in/out     cash-/+, acc 累计, gold 另 mv
  *  sv  代存 in/out(goal)   cash-/+, save 累计
+ *  refund 退款到账          cash+（不计收入，周期支出自动减掉退款）
  * ---------------------------------------------------------------- */
 function cashNow(){
   let c=S.t0.cash||0;
@@ -121,6 +122,7 @@ function cashNow(){
     if(r.type==='exp'){ if(!r.srcFund) c-=+r.amt||0; }        /* 专项花销早已拨出，不再扣活钱 */
     else if(r.type==='inc') c+=+r.amt||0;
     else if(r.type==='reimb') c+=+r.amt||0;
+    else if(r.type==='refund') c+=+r.amt||0;
     else if(r.type==='mv'){ if(r.dir==='in') c-=+r.amt||0; else c+=+r.amt||0; }
     else if(r.type==='sv'){ if(r.dir==='in') c-=+r.amt||0; else c+=+r.amt||0; }
     else if(r.type==='fd'){ if(r.dir==='in') c-=+r.amt||0; else if(r.dir==='out') c+=+r.amt||0; } /* xf 基金间结转不动活钱 */
@@ -202,8 +204,10 @@ function objPaidTotal(){
 function periodIn(recs){
   return Math.round(recs.filter(r=>r.type==='inc').reduce((s,r)=>s+(+r.amt||0),0)*100)/100;
 }
-function periodSpent(recs){ /* 我自己日常的消费（专项花销不算，钱是过去拨的） */
-  return Math.round(recs.filter(r=>r.type==='exp'&&!r.srcFund).reduce((s,r)=>s+(+r.amt||0),0)*100)/100;
+function periodRefund(recs){ return Math.round(recs.filter(r=>r.type==='refund').reduce((s,r)=>s+(+r.amt||0),0)*100)/100; }
+function periodSpent(recs){ /* 我自己日常的消费（专项花销不算）——净支出=支出−退款 */
+  const g=recs.filter(r=>r.type==='exp'&&!r.srcFund).reduce((s,r)=>s+(+r.amt||0),0);
+  return Math.round(Math.max(0,g-periodRefund(recs))*100)/100;
 }
 
 /* ================================================================
@@ -302,6 +306,7 @@ function coachDigest(){
   lines.push('周期 '+cycleLabel()+' · 距下次发薪 '+daysToNextPay()+' 天');
   lines.push('资产: 活钱 ¥'+fmt(a.cash)+' · 余利宝 ¥'+fmt(a.ylb)+' · 黄金 ¥'+fmt(a.gold)+' · 代存 ¥'+fmt(a.save)+' · 专项 ¥'+fmt(a.funds)+' · 合计 ¥'+fmt(a.total));
   lines.push('本周期: 到账 ¥'+fmt(inc)+' · 支出 ¥'+fmt(exp)+' · 日均可花 '+(cashPer==null?'—':'¥'+fmt(cashPer)));
+  const rf=periodRefund(recsInCycle()); if(rf>0) lines.push('退款: ¥'+fmt(rf)+'（已从周期支出中减掉）');
   const oP=objPaidTotal(); if(oP>0) lines.push('对方代付(亲密付) 累计 ¥'+fmt(oP));
   S.goals.forEach(g=>{ const v=saveVal(g.id); if(g.id==='car'){ if(v>0||S.t0.save.car>0) lines.push('目标「'+g.name+'」 '+fmt(v)+' / '+fmt(g.target||0)); } });
   const pd=plansDue(); const pend=pd.filter(x=>x.due||x.done);
@@ -398,7 +403,8 @@ function recShell(){
     '<div class="seg" id="segMode">'+
     '<button data-m="exp" class="'+(REC.mode==='exp'?'on':'')+'" onclick="setRecMode(\'exp\')">支出</button>'+
     '<button data-m="inc" class="'+(REC.mode==='inc'?'on':'')+'" onclick="setRecMode(\'inc\')">收入</button>'+
-    '<button data-m="mv" class="'+(REC.mode==='mv'?'on':'')+'" onclick="setRecMode(\'mv\')">转入/转出</button></div>'+
+    '<button data-m="mv" class="'+(REC.mode==='mv'?'on':'')+'" onclick="setRecMode(\'mv\')">转入/转出</button>'+
+    '<button data-m="refund" class="'+(REC.mode==='refund'?'on':'')+'" onclick="setRecMode(\'refund\')">退款</button></div>'+
     '<div id="recBox"></div>';
 }
 function openSheet(){ recPage=true; render(); }
@@ -489,7 +495,7 @@ function renderRec(){
   h+='<div class="amt-disp'+(REC.mode==='inc'?'':'')+'"><span class="cur">¥</span><span class="val'+(REC.amt?'':' ph')+'" id="amtV">'+esc(amtDisp)+'</span></div>';
   h+='<div class="chips" id="pickArea"></div>';
   h+='<div style="display:flex;gap:8px;margin-top:9px">';
-  h+='<div style="flex:1"><input class="inp" id="noteIn" placeholder="备注(可不填，如 午餐/地铁)" value="'+esc(REC.note)+'" oninput="REC.note=this.value;renderHint()"></div>';
+  h+='<div style="flex:1"><input class="inp" id="noteIn" placeholder="'+(REC.mode==='refund'?'备注(可不填，如 退的鞋)':(REC.mode==='inc'?'备注(可不填，如 工资)':'备注(可不填，如 午餐/地铁)'))+'" value="'+esc(REC.note)+'" oninput="REC.note=this.value;renderHint()"></div>';
   h+='<button class="mini" style="align-self:center" onclick="REC.date=todayInput();">📅</button></div>';
   h+='<div id="smartHint" style="font-size:11px;color:var(--txt3);min-height:16px;margin-top:5px"></div>';
   h+='<div class="kb">'+['1','2','3','4','5','6','7','8','9','.','0','⌫'].map(k=>'<button onclick="kbKey(\''+k+'\')">'+k+'</button>').join('')+'</div>';
@@ -529,6 +535,9 @@ function renderPickArea(){
     h+='<div style="font-size:11px;color:var(--txt3);margin-top:7px">'+
        (REC.src==='reimb'?'报销到账=活钱回来，不计入周期收入统计':'到账=活钱，都能花。来源只是标签（统计用）')+'</div>';
   }
+  else if(REC.mode==='refund'){
+    h+='<div style="font-size:12px;color:var(--gr);padding:2px 0 4px">↩️ 退款：钱回到活钱（不算收入），周期支出自动减掉退款。</div>';
+  }
   else{ /* mv */
     h+='<div class="chips" style="margin-bottom:8px">'+
        '<div class="chip '+(REC.mvDir==='in'?'on':'')+'" style="'+(REC.mvDir==='in'?'background:var(--cy);color:#04121a;font-weight:700':'')+'" onclick="REC.mvDir=\'in\';renderPickArea()">→ 存入/买入</div>'+
@@ -564,6 +573,9 @@ function saveRec(){
     if(REC.src==='reimb'){ rec.type='reimb'; rec.src='reimb'; }
     else { rec.type='inc'; rec.src=REC.src; }
   }
+  else if(REC.mode==='refund'){
+    rec.type='refund';
+  }
   else{ /* mv */
     if(REC.mvTo.slice(0,2)==='f:'){ /* 专项基金：放入=活钱→锅；转出=退回活钱 */
       rec.type='fd'; rec.dir=REC.mvDir; rec.fund=REC.mvTo.slice(2); rec.note=note||(REC.mvDir==='in'?'放入':'退回');
@@ -582,7 +594,7 @@ function saveRec(){
   const a=assets();
   if(rec.type==='exp'&&rec.cat==='give'){} 
   closeSheet();
-  showToast('已记 '+money(amt)+(rec.type==='obj'?'（对象付）':''),'ok');
+  showToast('已记 '+money(amt)+(rec.type==='obj'?'（对象付）':(rec.type==='refund'?'（退款）':'')),'ok');
   /* 连记：留在表单 */
   if(REC.mode!=='mv'){ setTimeout(()=>openRecord(REC.mode),60); }
 }
@@ -598,7 +610,7 @@ function coachFeed(){
   const cards=[];
   const a=assets(), toNext=daysToNextPay(), today=+TODAY().slice(8,10);
   const cyc=recsInCycle();
-  const inc=periodIn(cyc), exp=cyc.filter(r=>r.type==='exp'&&!r.srcFund).reduce((s,r)=>s+(+r.amt||0),0);
+  const inc=periodIn(cyc), exp=periodSpent(cyc);
   /* 1) 发薪日提醒 */
   if(TODAY()===nextPayday()||(today<=2&&cyc.length<3)) cards.push({q:'今天/刚发薪 💰',a:'记一下工资到账（收入→工资），教练好帮你规划这个周期。',w:'ok',btn:['记工资'],act:'inc'});
   /* 2) 到期计划 */
@@ -642,9 +654,11 @@ function coachFeed(){
 /* ---------------- 首页 ---------------- */
 function renderHome(){
   const a=assets(), toNext=daysToNextPay(), cyc=recsInCycle();
-  const inc=periodIn(cyc), exp=cyc.filter(r=>r.type==='exp'&&!r.srcFund).reduce((s,r)=>s+(+r.amt||0),0);
+  const inc=periodIn(cyc), exp=periodSpent(cyc), rf=periodRefund(cyc);
   const daily=toNext>0?Math.round(a.cash/toNext*100)/100:null;
-  const todayExp=S.recs.filter(r=>r.type==='exp'&&!r.srcFund&&r.d===TODAY()).reduce((s,r)=>s+(+r.amt||0),0);
+  const tExp=S.recs.filter(r=>r.type==='exp'&&!r.srcFund&&r.d===TODAY()).reduce((s,r)=>s+(+r.amt||0),0);
+  const tRf=S.recs.filter(r=>r.type==='refund'&&r.d===TODAY()).reduce((s,r)=>s+(+r.amt||0),0);
+  const todayExp=Math.max(0,tExp-tRf);
   const recent=S.recs.slice().sort((x,y)=>cmpD(y.d,x.d)||(y.ts||0)-(x.ts||0)).slice(0,6);
   let h='';
   /* 资产 hud */
@@ -656,7 +670,7 @@ function renderHome(){
   h+='<div class="hud"><div class="cell"><div class="k">本周期到账</div><div class="v gr">'+money(inc)+'</div></div>'+
      '<div class="cell"><div class="k">本周期支出</div><div class="v '+(exp>daily?'mg':'')+'">'+money(exp)+'</div></div>'+
      '<div class="cell"><div class="k">对方代付</div><div class="v pu">'+money(objPaidTotal())+'</div></div></div>'+
-     '<div style="display:flex;gap:16px;font-size:11px;color:var(--txt3);margin:1px 0 0 4px">今日支出 <b style="color:'+(todayExp>0?'var(--mg)':'var(--txt3)')+'">'+money(todayExp)+'</b></div>';
+     '<div style="display:flex;gap:16px;font-size:11px;color:var(--txt3);margin:1px 0 0 4px">今日支出 <b style="color:'+(todayExp>0?'var(--mg)':'var(--txt3)')+'">'+money(todayExp)+'</b>'+(rf>0?'<span> · 退款 <b style="color:var(--gr)">'+money(rf)+'</b></span>':'')+'</div>';
   /* 教练 feed */
   const feed=coachFeed();
   if(feed.length){
@@ -687,23 +701,25 @@ function recRow(r){
   let ic='💸',c='var(--txt)',t1='',t2='';
   if(r.type==='inc'){ const si=INCS.find(x=>x.k===r.src)||{}; ic='💰'; c='var(--gr)'; t1=si.n||'收入'; t2=(r.note||TODAY())&&(r.d); }
   else if(r.type==='reimb'){ ic='💰'; c='var(--cy)'; t1=(r.note||'报销到账'); t2='报销 · '+r.d; }
+  else if(r.type==='refund'){ ic='↩️'; c='var(--gr)'; t1=r.note||'退款'; t2='退款 · '+r.d; }
   else if(r.type==='exp'&&r.srcFund){ ic='🎒'; c='var(--or)'; t1=r.note||'专项花销'; t2='专项·'+fundName(r.srcFund)+(r.cat?' · '+catInfo(r.cat).n:'')+' · '+r.d; }
   else if(r.type==='exp'||r.type==='obj'){ const ci=catInfo(r.cat); ic=ci.e; c=r.type==='obj'?'var(--pu)':'var(--mg)'; t1=r.note||ci.n; t2=ci.n+(r.type==='obj'?' · 对象付':'')+' · '+r.d; }
   else if(r.type==='mv'){ const an=(r.acc==='gold'?'黄金':'余利宝'); ic=r.dir==='in'?'📥':'📤'; c=r.dir==='in'?'var(--or)':'var(--cy)'; t1=(r.note||(r.dir==='in'?'买入':'赎回'))+' '+an; t2=r.d; }
   else if(r.type==='sv'){ const gn=(goalOf(r.goal)||{name:r.goal==='car'?'买车基金':'代存'}).name; ic=r.dir==='in'?'🏦':'↩️'; c=r.dir==='in'?'var(--pu)':'var(--gr)'; t1=(r.note||gn)+(r.dir==='in'?' 存入':' 转回'); t2=r.d; }
   else if(r.type==='fd'){ if(r.dir==='xf'){ ic='🔁'; c='var(--txt2)'; t1='结转 '+(r.note||(fundName(r.fund)+'→'+fundName(r.to))); t2=r.d; }
     else{ ic=r.dir==='in'?'📥':'↩️'; c='var(--or)'; t1=(r.note||(r.dir==='in'?'放入':'退回'))+' · 专项·'+fundName(r.fund); t2=r.d; } }
-  const outAmt=(r.type==='inc'||r.type==='reimb'||r.type==='sv'&&r.dir==='out'||r.type==='mv'&&r.dir==='out'||r.type==='fd'&&(r.dir==='out'||r.dir==='xf'))?'+':'−';
+  const outAmt=(r.type==='inc'||r.type==='reimb'||r.type==='refund'||r.type==='sv'&&r.dir==='out'||r.type==='mv'&&r.dir==='out'||r.type==='fd'&&(r.dir==='out'||r.dir==='xf'))?'+':'−';
   if(r.type==='fd'&&r.dir==='xf'){ /* 结转行：金额不带±便于读(两方向都显示数额) */
     return '<div class="row"><div class="ic" style="background:rgba(255,255,255,.05)">'+ic+'</div><div class="mid"><div class="t1">'+esc(t1)+'</div><div class="t2">'+esc(t2)+'</div></div><div class="amt" style="color:'+c+'">'+fmt(r.amt)+'</div><span class="del-rec" onclick="delRec(\''+r.id+'\')">✕</span></div>';
   }
-  return '<div class="row"><div class="ic" style="background:rgba(255,255,255,.05)">'+ic+'</div><div class="mid"><div class="t1">'+esc(t1)+'</div><div class="t2">'+esc(t2)+'</div></div><div class="amt '+(r.type==='inc'||r.type==='reimb'||r.type==='sv'&&r.dir==='out'||r.type==='mv'&&r.dir==='out'||r.type==='fd'&&r.dir==='out'?'':'mg')+'" style="color:'+c+'">'+(r.type==='exp'&&r.srcFund?'−':outAmt)+fmt(r.amt)+'</div><span class="del-rec" onclick="delRec(\''+r.id+'\')">✕</span></div>';
+  return '<div class="row"><div class="ic" style="background:rgba(255,255,255,.05)">'+ic+'</div><div class="mid"><div class="t1">'+esc(t1)+'</div><div class="t2">'+esc(t2)+'</div></div><div class="amt '+(r.type==='inc'||r.type==='reimb'||r.type==='refund'||r.type==='sv'&&r.dir==='out'||r.type==='mv'&&r.dir==='out'||r.type==='fd'&&r.dir==='out'?'':'mg')+'" style="color:'+c+'">'+(r.type==='exp'&&r.srcFund?'−':outAmt)+fmt(r.amt)+'</div><span class="del-rec" onclick="delRec(\''+r.id+'\')">✕</span></div>';
 }
 function useTpl(i){ const t=(window._tpls=topTpls())[i]; if(!t) return; S.recs.push({id:uid(),d:TODAY(),amt:t.amt,note:t.note,cat:t.cat,type:'exp',ts:nowTs()}); save(); render(); showToast('已记 '+esc(t.note)+' '+money(t.amt),'ok'); }
 function delRec(id){
   const r=S.recs.find(x=>x.id===id); if(!r) return;
   let info='';
   if(r.type==='inc') info='💰 收入 '+money(r.amt);
+  else if(r.type==='refund') info='↩️ 退款 '+money(r.amt);
   else if(r.type==='exp'&&r.srcFund) info='🎒 专项花销 '+money(r.amt);
   else if(r.type==='exp') info='💸 支出 '+money(r.amt);
   else if(r.type==='obj') info='💝 对象付 '+money(r.amt);
@@ -757,7 +773,8 @@ function renderCycle(){
   const toNext=daysToNextPay(), a=assets();
   const inc=periodIn(cyc);
   const exps=cyc.filter(r=>r.type==='exp'&&!r.srcFund);
-  const exp=exps.reduce((s,r)=>s+(+r.amt||0),0);
+  const exp=Math.max(0,exps.reduce((s,r)=>s+(+r.amt||0),0)-periodRefund(cyc));
+  const rf=periodRefund(cyc);
   const objs=cyc.filter(r=>r.type==='obj').reduce((s,r)=>s+(+r.amt||0),0);
   const fs=fundsSpentIn(cyc);
   const reimbs=cyc.filter(r=>r.type==='reimb').reduce((s,r)=>s+(+r.amt||0),0);
@@ -776,7 +793,7 @@ function renderCycle(){
   h+='<div class="card cy-b"><div class="c-head"><div class="c-title">'+(cycleFilter.mode==='cycle'?'CYCLE / 发薪周期':'STAT / 统计')+'</div><div class="c-sub">'+filterLabel()+'</div></div>'+
      (cycleFilter.mode==='cycle'?'<div style="display:flex;align-items:baseline;gap:10px;flex-wrap:wrap"><span style="color:var(--txt3);font-size:12px">距下次发薪</span><span class="big-num" style="font-size:30px;color:var(--cy)">'+toNext+' 天</span>'+
      '<span style="font-size:12px;color:var(--txt2)">(下次 '+nextPayday()+')</span></div>':'')+
-     '<div style="font-size:12px;color:var(--txt3);margin-top:8px">到账 <b style="color:var(--gr)">'+money(inc)+'</b> · 支出 <b style="color:var(--mg)">'+money(exp)+'</b>'+(objs?' · 对象付 <b style="color:var(--pu)">'+money(objs)+'</b>':'')+(fs?' · 专项花销 <b style="color:var(--or)">'+money(fs)+'</b>':'')+(reimbs?' · 报销到账 <b style="color:var(--cy)">'+money(reimbs)+'</b>':'')+'</div></div>';
+     '<div style="font-size:12px;color:var(--txt3);margin-top:8px">到账 <b style="color:var(--gr)">'+money(inc)+'</b> · 支出 <b style="color:var(--mg)">'+money(exp)+'</b>'+(rf?' · 退款 <b style="color:var(--gr)">'+money(rf)+'</b>':'')+(objs?' · 对象付 <b style="color:var(--pu)">'+money(objs)+'</b>':'')+(fs?' · 专项花销 <b style="color:var(--or)">'+money(fs)+'</b>':'')+(reimbs?' · 报销到账 <b style="color:var(--cy)">'+money(reimbs)+'</b>':'')+'</div></div>';
   h+='<div class="card"><div class="c-head"><div class="c-title">SPEND / 花在哪</div></div>';
   if(!sorted.length) h+='<div class="empty">这段时间没有支出</div>';
   else sorted.slice(0,6).forEach(k=>{ const v=byCat[k], p=maxV?Math.round(v/maxV*100):0, ci=catInfo(k); h+='<div style="display:flex;align-items:center;gap:8px;margin-bottom:7px"><span style="width:70px;font-size:12px;flex-shrink:0">'+ci.e+' '+ci.n+'</span><div class="bar" style="flex:1"><i style="width:'+p+'%;background:'+catCol(k)+'"></i></div><span style="font-family:var(--mono);font-size:12px">'+money(v)+'</span></div>'; });
@@ -1287,13 +1304,19 @@ function forceUpdate(){ if(!confirm('清缓存并刷新？只清缓存不动数�
     mk({id:'4',d:'2026-09-05',amt:100,type:'mv',dir:'in',acc:'ylb'});
     mk({id:'5',d:'2026-09-05',amt:500,type:'sv',dir:'in',goal:'car'});
     mk({id:'6',d:'2026-09-06',amt:99,type:'obj',cat:'food'});
+    mk({id:'7',d:'2026-09-07',amt:10,type:'refund',note:'退鞋'});
     var a=assets();
-    log('cash='+a.cash+'|want10177');
+    log('cash='+a.cash+'|want10187');
     log('ylb='+a.ylb+'|want100');
     log('gold='+a.gold+'|want200');
     log('save='+a.save+'|want500');
-    log('total='+a.total+'|want10977');
+    log('total='+a.total+'|want10987');
     log('objPaid='+objPaidTotal()+'|want99');
+    log('refund='+periodRefund(S.recs)+'|want10');
+    log('netSpent='+periodSpent(S.recs)+'|want13');
+    log('periodIn='+periodIn(S.recs)+'|want6000');
+    var hh0=renderHome(); log('homeRefund='+(hh0.indexOf('退款')>=0)+'|wanttrue');
+    log('rowRefund='+(recRow({id:'x',d:'2026-09-07',amt:10,type:'refund',note:'退鞋'}).indexOf('+10')>=0)+'|wanttrue');
     log('pay='+nextPayday()+' daysTo='+daysToNextPay());
     log('cycle='+cycleLabel());
     var hh=renderHome();

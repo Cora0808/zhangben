@@ -94,6 +94,7 @@ function coachDigest(){
   lines.push('周期 '+cycleLabel()+' · 距下次发薪 '+daysToNextPay()+' 天');
   lines.push('资产: 活钱 ¥'+fmt(a.cash)+' · 余利宝 ¥'+fmt(a.ylb)+' · 黄金 ¥'+fmt(a.gold)+' · 代存 ¥'+fmt(a.save)+' · 专项 ¥'+fmt(a.funds)+' · 合计 ¥'+fmt(a.total));
   lines.push('本周期: 到账 ¥'+fmt(inc)+' · 支出 ¥'+fmt(exp)+' · 日均可花 '+(cashPer==null?'—':'¥'+fmt(cashPer)));
+  const rf=periodRefund(recsInCycle()); if(rf>0) lines.push('退款: ¥'+fmt(rf)+'（已从周期支出中减掉）');
   const oP=objPaidTotal(); if(oP>0) lines.push('对方代付(亲密付) 累计 ¥'+fmt(oP));
   S.goals.forEach(g=>{ const v=saveVal(g.id); if(g.id==='car'){ if(v>0||S.t0.save.car>0) lines.push('目标「'+g.name+'」 '+fmt(v)+' / '+fmt(g.target||0)); } });
   const pd=plansDue(); const pend=pd.filter(x=>x.due||x.done);

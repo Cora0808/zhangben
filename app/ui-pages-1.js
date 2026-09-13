@@ -9,7 +9,7 @@ function coachFeed(){
   const cards=[];
   const a=assets(), toNext=daysToNextPay(), today=+TODAY().slice(8,10);
   const cyc=recsInCycle();
-  const inc=periodIn(cyc), exp=cyc.filter(r=>r.type==='exp'&&!r.srcFund).reduce((s,r)=>s+(+r.amt||0),0);
+  const inc=periodIn(cyc), exp=periodSpent(cyc);
   /* 1) 发薪日提醒 */
   if(TODAY()===nextPayday()||(today<=2&&cyc.length<3)) cards.push({q:'今天/刚发薪 💰',a:'记一下工资到账（收入→工资），教练好帮你规划这个周期。',w:'ok',btn:['记工资'],act:'inc'});
   /* 2) 到期计划 */
@@ -53,9 +53,11 @@ function coachFeed(){
 /* ---------------- 首页 ---------------- */
 function renderHome(){
   const a=assets(), toNext=daysToNextPay(), cyc=recsInCycle();
-  const inc=periodIn(cyc), exp=cyc.filter(r=>r.type==='exp'&&!r.srcFund).reduce((s,r)=>s+(+r.amt||0),0);
+  const inc=periodIn(cyc), exp=periodSpent(cyc), rf=periodRefund(cyc);
   const daily=toNext>0?Math.round(a.cash/toNext*100)/100:null;
-  const todayExp=S.recs.filter(r=>r.type==='exp'&&!r.srcFund&&r.d===TODAY()).reduce((s,r)=>s+(+r.amt||0),0);
+  const tExp=S.recs.filter(r=>r.type==='exp'&&!r.srcFund&&r.d===TODAY()).reduce((s,r)=>s+(+r.amt||0),0);
+  const tRf=S.recs.filter(r=>r.type==='refund'&&r.d===TODAY()).reduce((s,r)=>s+(+r.amt||0),0);
+  const todayExp=Math.max(0,tExp-tRf);
   const recent=S.recs.slice().sort((x,y)=>cmpD(y.d,x.d)||(y.ts||0)-(x.ts||0)).slice(0,6);
   let h='';
   /* 资产 hud */
@@ -67,7 +69,7 @@ function renderHome(){
   h+='<div class="hud"><div class="cell"><div class="k">本周期到账</div><div class="v gr">'+money(inc)+'</div></div>'+
      '<div class="cell"><div class="k">本周期支出</div><div class="v '+(exp>daily?'mg':'')+'">'+money(exp)+'</div></div>'+
      '<div class="cell"><div class="k">对方代付</div><div class="v pu">'+money(objPaidTotal())+'</div></div></div>'+
-     '<div style="display:flex;gap:16px;font-size:11px;color:var(--txt3);margin:1px 0 0 4px">今日支出 <b style="color:'+(todayExp>0?'var(--mg)':'var(--txt3)')+'">'+money(todayExp)+'</b></div>';
+     '<div style="display:flex;gap:16px;font-size:11px;color:var(--txt3);margin:1px 0 0 4px">今日支出 <b style="color:'+(todayExp>0?'var(--mg)':'var(--txt3)')+'">'+money(todayExp)+'</b>'+(rf>0?'<span> · 退款 <b style="color:var(--gr)">'+money(rf)+'</b></span>':'')+'</div>';
   /* 教练 feed */
   const feed=coachFeed();
   if(feed.length){
@@ -98,23 +100,25 @@ function recRow(r){
   let ic='💸',c='var(--txt)',t1='',t2='';
   if(r.type==='inc'){ const si=INCS.find(x=>x.k===r.src)||{}; ic='💰'; c='var(--gr)'; t1=si.n||'收入'; t2=(r.note||TODAY())&&(r.d); }
   else if(r.type==='reimb'){ ic='💰'; c='var(--cy)'; t1=(r.note||'报销到账'); t2='报销 · '+r.d; }
+  else if(r.type==='refund'){ ic='↩️'; c='var(--gr)'; t1=r.note||'退款'; t2='退款 · '+r.d; }
   else if(r.type==='exp'&&r.srcFund){ ic='🎒'; c='var(--or)'; t1=r.note||'专项花销'; t2='专项·'+fundName(r.srcFund)+(r.cat?' · '+catInfo(r.cat).n:'')+' · '+r.d; }
   else if(r.type==='exp'||r.type==='obj'){ const ci=catInfo(r.cat); ic=ci.e; c=r.type==='obj'?'var(--pu)':'var(--mg)'; t1=r.note||ci.n; t2=ci.n+(r.type==='obj'?' · 对象付':'')+' · '+r.d; }
   else if(r.type==='mv'){ const an=(r.acc==='gold'?'黄金':'余利宝'); ic=r.dir==='in'?'📥':'📤'; c=r.dir==='in'?'var(--or)':'var(--cy)'; t1=(r.note||(r.dir==='in'?'买入':'赎回'))+' '+an; t2=r.d; }
   else if(r.type==='sv'){ const gn=(goalOf(r.goal)||{name:r.goal==='car'?'买车基金':'代存'}).name; ic=r.dir==='in'?'🏦':'↩️'; c=r.dir==='in'?'var(--pu)':'var(--gr)'; t1=(r.note||gn)+(r.dir==='in'?' 存入':' 转回'); t2=r.d; }
   else if(r.type==='fd'){ if(r.dir==='xf'){ ic='🔁'; c='var(--txt2)'; t1='结转 '+(r.note||(fundName(r.fund)+'→'+fundName(r.to))); t2=r.d; }
     else{ ic=r.dir==='in'?'📥':'↩️'; c='var(--or)'; t1=(r.note||(r.dir==='in'?'放入':'退回'))+' · 专项·'+fundName(r.fund); t2=r.d; } }
-  const outAmt=(r.type==='inc'||r.type==='reimb'||r.type==='sv'&&r.dir==='out'||r.type==='mv'&&r.dir==='out'||r.type==='fd'&&(r.dir==='out'||r.dir==='xf'))?'+':'−';
+  const outAmt=(r.type==='inc'||r.type==='reimb'||r.type==='refund'||r.type==='sv'&&r.dir==='out'||r.type==='mv'&&r.dir==='out'||r.type==='fd'&&(r.dir==='out'||r.dir==='xf'))?'+':'−';
   if(r.type==='fd'&&r.dir==='xf'){ /* 结转行：金额不带±便于读(两方向都显示数额) */
     return '<div class="row"><div class="ic" style="background:rgba(255,255,255,.05)">'+ic+'</div><div class="mid"><div class="t1">'+esc(t1)+'</div><div class="t2">'+esc(t2)+'</div></div><div class="amt" style="color:'+c+'">'+fmt(r.amt)+'</div><span class="del-rec" onclick="delRec(\''+r.id+'\')">✕</span></div>';
   }
-  return '<div class="row"><div class="ic" style="background:rgba(255,255,255,.05)">'+ic+'</div><div class="mid"><div class="t1">'+esc(t1)+'</div><div class="t2">'+esc(t2)+'</div></div><div class="amt '+(r.type==='inc'||r.type==='reimb'||r.type==='sv'&&r.dir==='out'||r.type==='mv'&&r.dir==='out'||r.type==='fd'&&r.dir==='out'?'':'mg')+'" style="color:'+c+'">'+(r.type==='exp'&&r.srcFund?'−':outAmt)+fmt(r.amt)+'</div><span class="del-rec" onclick="delRec(\''+r.id+'\')">✕</span></div>';
+  return '<div class="row"><div class="ic" style="background:rgba(255,255,255,.05)">'+ic+'</div><div class="mid"><div class="t1">'+esc(t1)+'</div><div class="t2">'+esc(t2)+'</div></div><div class="amt '+(r.type==='inc'||r.type==='reimb'||r.type==='refund'||r.type==='sv'&&r.dir==='out'||r.type==='mv'&&r.dir==='out'||r.type==='fd'&&r.dir==='out'?'':'mg')+'" style="color:'+c+'">'+(r.type==='exp'&&r.srcFund?'−':outAmt)+fmt(r.amt)+'</div><span class="del-rec" onclick="delRec(\''+r.id+'\')">✕</span></div>';
 }
 function useTpl(i){ const t=(window._tpls=topTpls())[i]; if(!t) return; S.recs.push({id:uid(),d:TODAY(),amt:t.amt,note:t.note,cat:t.cat,type:'exp',ts:nowTs()}); save(); render(); showToast('已记 '+esc(t.note)+' '+money(t.amt),'ok'); }
 function delRec(id){
   const r=S.recs.find(x=>x.id===id); if(!r) return;
   let info='';
   if(r.type==='inc') info='💰 收入 '+money(r.amt);
+  else if(r.type==='refund') info='↩️ 退款 '+money(r.amt);
   else if(r.type==='exp'&&r.srcFund) info='🎒 专项花销 '+money(r.amt);
   else if(r.type==='exp') info='💸 支出 '+money(r.amt);
   else if(r.type==='obj') info='💝 对象付 '+money(r.amt);
@@ -168,7 +172,8 @@ function renderCycle(){
   const toNext=daysToNextPay(), a=assets();
   const inc=periodIn(cyc);
   const exps=cyc.filter(r=>r.type==='exp'&&!r.srcFund);
-  const exp=exps.reduce((s,r)=>s+(+r.amt||0),0);
+  const exp=Math.max(0,exps.reduce((s,r)=>s+(+r.amt||0),0)-periodRefund(cyc));
+  const rf=periodRefund(cyc);
   const objs=cyc.filter(r=>r.type==='obj').reduce((s,r)=>s+(+r.amt||0),0);
   const fs=fundsSpentIn(cyc);
   const reimbs=cyc.filter(r=>r.type==='reimb').reduce((s,r)=>s+(+r.amt||0),0);
@@ -187,7 +192,7 @@ function renderCycle(){
   h+='<div class="card cy-b"><div class="c-head"><div class="c-title">'+(cycleFilter.mode==='cycle'?'CYCLE / 发薪周期':'STAT / 统计')+'</div><div class="c-sub">'+filterLabel()+'</div></div>'+
      (cycleFilter.mode==='cycle'?'<div style="display:flex;align-items:baseline;gap:10px;flex-wrap:wrap"><span style="color:var(--txt3);font-size:12px">距下次发薪</span><span class="big-num" style="font-size:30px;color:var(--cy)">'+toNext+' 天</span>'+
      '<span style="font-size:12px;color:var(--txt2)">(下次 '+nextPayday()+')</span></div>':'')+
-     '<div style="font-size:12px;color:var(--txt3);margin-top:8px">到账 <b style="color:var(--gr)">'+money(inc)+'</b> · 支出 <b style="color:var(--mg)">'+money(exp)+'</b>'+(objs?' · 对象付 <b style="color:var(--pu)">'+money(objs)+'</b>':'')+(fs?' · 专项花销 <b style="color:var(--or)">'+money(fs)+'</b>':'')+(reimbs?' · 报销到账 <b style="color:var(--cy)">'+money(reimbs)+'</b>':'')+'</div></div>';
+     '<div style="font-size:12px;color:var(--txt3);margin-top:8px">到账 <b style="color:var(--gr)">'+money(inc)+'</b> · 支出 <b style="color:var(--mg)">'+money(exp)+'</b>'+(rf?' · 退款 <b style="color:var(--gr)">'+money(rf)+'</b>':'')+(objs?' · 对象付 <b style="color:var(--pu)">'+money(objs)+'</b>':'')+(fs?' · 专项花销 <b style="color:var(--or)">'+money(fs)+'</b>':'')+(reimbs?' · 报销到账 <b style="color:var(--cy)">'+money(reimbs)+'</b>':'')+'</div></div>';
   h+='<div class="card"><div class="c-head"><div class="c-title">SPEND / 花在哪</div></div>';
   if(!sorted.length) h+='<div class="empty">这段时间没有支出</div>';
   else sorted.slice(0,6).forEach(k=>{ const v=byCat[k], p=maxV?Math.round(v/maxV*100):0, ci=catInfo(k); h+='<div style="display:flex;align-items:center;gap:8px;margin-bottom:7px"><span style="width:70px;font-size:12px;flex-shrink:0">'+ci.e+' '+ci.n+'</span><div class="bar" style="flex:1"><i style="width:'+p+'%;background:'+catCol(k)+'"></i></div><span style="font-family:var(--mono);font-size:12px">'+money(v)+'</span></div>'; });

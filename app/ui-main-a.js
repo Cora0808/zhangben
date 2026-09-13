@@ -44,7 +44,8 @@ function recShell(){
     '<div class="seg" id="segMode">'+
     '<button data-m="exp" class="'+(REC.mode==='exp'?'on':'')+'" onclick="setRecMode(\'exp\')">支出</button>'+
     '<button data-m="inc" class="'+(REC.mode==='inc'?'on':'')+'" onclick="setRecMode(\'inc\')">收入</button>'+
-    '<button data-m="mv" class="'+(REC.mode==='mv'?'on':'')+'" onclick="setRecMode(\'mv\')">转入/转出</button></div>'+
+    '<button data-m="mv" class="'+(REC.mode==='mv'?'on':'')+'" onclick="setRecMode(\'mv\')">转入/转出</button>'+
+    '<button data-m="refund" class="'+(REC.mode==='refund'?'on':'')+'" onclick="setRecMode(\'refund\')">退款</button></div>'+
     '<div id="recBox"></div>';
 }
 function openSheet(){ recPage=true; render(); }
@@ -135,7 +136,7 @@ function renderRec(){
   h+='<div class="amt-disp'+(REC.mode==='inc'?'':'')+'"><span class="cur">¥</span><span class="val'+(REC.amt?'':' ph')+'" id="amtV">'+esc(amtDisp)+'</span></div>';
   h+='<div class="chips" id="pickArea"></div>';
   h+='<div style="display:flex;gap:8px;margin-top:9px">';
-  h+='<div style="flex:1"><input class="inp" id="noteIn" placeholder="备注(可不填，如 午餐/地铁)" value="'+esc(REC.note)+'" oninput="REC.note=this.value;renderHint()"></div>';
+  h+='<div style="flex:1"><input class="inp" id="noteIn" placeholder="'+(REC.mode==='refund'?'备注(可不填，如 退的鞋)':(REC.mode==='inc'?'备注(可不填，如 工资)':'备注(可不填，如 午餐/地铁)'))+'" value="'+esc(REC.note)+'" oninput="REC.note=this.value;renderHint()"></div>';
   h+='<button class="mini" style="align-self:center" onclick="REC.date=todayInput();">📅</button></div>';
   h+='<div id="smartHint" style="font-size:11px;color:var(--txt3);min-height:16px;margin-top:5px"></div>';
   h+='<div class="kb">'+['1','2','3','4','5','6','7','8','9','.','0','⌫'].map(k=>'<button onclick="kbKey(\''+k+'\')">'+k+'</button>').join('')+'</div>';
@@ -175,6 +176,9 @@ function renderPickArea(){
     h+='<div style="font-size:11px;color:var(--txt3);margin-top:7px">'+
        (REC.src==='reimb'?'报销到账=活钱回来，不计入周期收入统计':'到账=活钱，都能花。来源只是标签（统计用）')+'</div>';
   }
+  else if(REC.mode==='refund'){
+    h+='<div style="font-size:12px;color:var(--gr);padding:2px 0 4px">↩️ 退款：钱回到活钱（不算收入），周期支出自动减掉退款。</div>';
+  }
   else{ /* mv */
     h+='<div class="chips" style="margin-bottom:8px">'+
        '<div class="chip '+(REC.mvDir==='in'?'on':'')+'" style="'+(REC.mvDir==='in'?'background:var(--cy);color:#04121a;font-weight:700':'')+'" onclick="REC.mvDir=\'in\';renderPickArea()">→ 存入/买入</div>'+
@@ -210,6 +214,9 @@ function saveRec(){
     if(REC.src==='reimb'){ rec.type='reimb'; rec.src='reimb'; }
     else { rec.type='inc'; rec.src=REC.src; }
   }
+  else if(REC.mode==='refund'){
+    rec.type='refund';
+  }
   else{ /* mv */
     if(REC.mvTo.slice(0,2)==='f:'){ /* 专项基金：放入=活钱→锅；转出=退回活钱 */
       rec.type='fd'; rec.dir=REC.mvDir; rec.fund=REC.mvTo.slice(2); rec.note=note||(REC.mvDir==='in'?'放入':'退回');
@@ -228,7 +235,7 @@ function saveRec(){
   const a=assets();
   if(rec.type==='exp'&&rec.cat==='give'){} 
   closeSheet();
-  showToast('已记 '+money(amt)+(rec.type==='obj'?'（对象付）':''),'ok');
+  showToast('已记 '+money(amt)+(rec.type==='obj'?'（对象付）':(rec.type==='refund'?'（退款）':'')),'ok');
   /* 连记：留在表单 */
   if(REC.mode!=='mv'){ setTimeout(()=>openRecord(REC.mode),60); }
 }
