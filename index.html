@@ -184,7 +184,7 @@ nav button .ni{font-size:19px;line-height:1}
    ================================================================ */
 /* ---------- 常量 ---------- */
 const KEY='wb_coach_v1';
-const APP_VER='v4.2.8';
+const APP_VER='v4.2.9';
 const TODAY=()=>{const d=new Date();return d.getFullYear()+'-'+P(d.getMonth()+1)+'-'+P(d.getDate());};
 const P=n=>n<10?'0'+n:''+n;
 const YM=dstr=>String(dstr||'').slice(0,7);
@@ -1002,7 +1002,7 @@ function renderInvest(){
   const mOut=S.recs.filter(r=>r.type==='mv'&&r.dir==='out'&&YM(r.d)===ym).reduce((s,r)=>s+(+r.amt||0),0);
   const sIn=S.recs.filter(r=>r.type==='sv'&&r.dir==='in'&&YM(r.d)===ym).reduce((s,r)=>s+(+r.amt||0),0);
   let h='';
-  h+='<div class="card cy-b"><div class="c-head"><div class="c-title">PORTFOLIO / 持仓</div><div class="c-sub">'+mLabel(ym)+' 投入 ¥'+fmt(mIn+mOut?mIn+mOut:0)+'</div></div>';
+  h+='<div class="card cy-b"><div class="c-head"><div class="c-title">PORTFOLIO / 持仓</div><div class="c-sub">'+mLabel(ym)+' 投入 ¥'+fmt(mIn)+'</div></div>';
   /* 余利宝 */
   const ylbCost=S.recs.filter(r=>r.type==='mv'&&r.acc==='ylb'&&r.dir==='in').reduce((s,r)=>s+(+r.amt||0),0)+(S.t0.acc.ylb||0);
   h+='<div class="row"><div class="ic" style="background:rgba(0,229,255,.12)">💧</div><div class="mid"><div class="t1">余利宝</div><div class="t2">余额型 · 活钱 + '+fmt(ylbCost)+' 累计转入</div></div><div class="amt" style="color:var(--cy)">'+money(a.ylb)+'</div></div>';
