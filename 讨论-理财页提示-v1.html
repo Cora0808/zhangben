@@ -1,0 +1,117 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>理财块要不要加提示 · 方案讨论 v1</title>
+<style>
+  :root{
+    --ink:#1c1f26; --sub:#5b6473; --line:#e3e6ec; --bg:#f6f7f9; --card:#fff;
+    --ok:#0a8a52; --okbg:#eaf7f0; --no:#a2543a; --nobg:#fbf0ec; --new:#1a6fd4; --newbg:#eaf2fd;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--ink);
+       font:15px/1.75 -apple-system,"PingFang SC","Microsoft YaHei",system-ui,sans-serif;
+       padding:18px 14px 40px;padding-bottom:calc(40px + env(safe-area-inset-bottom))}
+  .wrap{max-width:760px;margin:0 auto}
+  h1{font-size:21px;line-height:1.4;margin:0 0 6px}
+  .lead{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:13px 15px;margin:12px 0 20px;font-size:15px}
+  h2{font-size:16px;margin:24px 0 10px;padding-left:9px;border-left:4px solid #1a6fd4}
+  .row{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:12px 14px;margin-bottom:9px;display:flex;gap:11px}
+  .mark{flex:0 0 22px;font-weight:700;font-size:15px;padding-top:1px}
+  .ok .mark{color:var(--ok)} .no .mark{color:var(--no)} .nw .mark{color:var(--new)}
+  .row.ok{background:var(--okbg)} .row.no{background:var(--nobg)} .row.nw{background:var(--newbg)}
+  .row b{font-weight:600}
+  .row .hint{display:block;color:var(--sub);font-size:13px;margin-top:3px}
+  .tag{display:inline-block;font-size:11px;padding:1px 7px;border-radius:99px;border:1px solid var(--line);background:#fff;color:var(--sub);margin-left:6px;vertical-align:1px}
+  .tag.s{color:var(--ok);border-color:#b9e2ce}
+  .tag.m{color:#8a6100;border-color:#f0dca6}
+  .tag.l{color:var(--no);border-color:#efd0c6}
+  .note{background:#fffdf3;border:1px solid #f0e6c8;border-radius:12px;padding:12px 14px;font-size:14px;color:#4a4433}
+  .pick{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:14px}
+  .pick code{background:#f2f4f7;border-radius:6px;padding:2px 7px;font-size:13px;color:#1a6fd4}
+  ol{padding-left:22px;margin:6px 0 0} ol li{margin-bottom:6px}
+  .foot{color:var(--sub);font-size:12.5px;margin-top:22px;text-align:center;line-height:1.7}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<h1>理财这块，要不要加"提示"？</h1>
+<div class="lead">
+  <b>结论先说：能加，而且现在理财页一条提示都没有。</b><br>
+  我挑出 4 条可以加的，其中第 1 条和第 4 条建议直接加（基本不会烦到你，还顺手补掉一个自相矛盾的地方）；第 2、3 条看你要不要。
+</div>
+
+<h2>一、现在的实际情况（当前版本 v4.2.8）</h2>
+<div class="row ok"><div class="mark">✓</div><div>
+  <b>已经有的：首页教练区里一条黄金提醒</b>
+  <span class="hint">"黄金在观望中：你暂停了定投改存余利宝，回调了记得恢复，不追高"——但它只出现一次，你点过"知道了"以后就不再出现。</span>
+</div></div>
+<div class="row ok"><div class="mark">✓</div><div>
+  <b>已经有的：每月计划到期提醒</b>
+  <span class="hint">余利宝 +100、黄金定投这类计划，到日子会提醒你记一笔或跳过。</span>
+</div></div>
+<div class="row ok"><div class="mark">✓</div><div>
+  <b>已经有的：花钱节奏正常时的一句顺带话</b>
+  <span class="hint">"日均低于可花额度……多出的可以转入余利宝/买车基金"。</span>
+</div></div>
+<div class="row no"><div class="mark">✗</div><div>
+  <b>没有：理财页自己一条提示都没有</b>
+  <span class="hint">那一页只有数字和三个按钮（记投入/转出、更新黄金市值、暂停或恢复定投）。</span>
+</div></div>
+<div class="row no"><div class="mark">✗</div><div>
+  <b>没有：黄金市值是什么时候更新的，看不出</b>
+  <span class="hint">黄金是"市值型"，你久不更新，页面上的盈亏就是旧数字，看着像赚了/亏了其实早变了。</span>
+</div></div>
+<div class="row no"><div class="mark">✗</div><div>
+  <b>没有：黄金"观望暂停"和"定投计划到期"可能同时弹</b>
+  <span class="hint">一个说"暂停中、不追高"，另一个说"计划到期，记这笔"——两条打架，会让你犹豫。</span>
+</div></div>
+
+<h2>二、建议加的提示（回数字，可以多选）</h2>
+<div class="row nw"><div class="mark">1</div><div>
+  <b>该更新黄金市值了<span class="tag s">建议加</span><span class="tag">你只要点一下</span></b>
+  <span class="hint">距上次更新超过 30 天，理财页弹一句："金价可能变了，更新一下市值，盈亏才准。"点开就是现在那个更新框，几秒钟的事。</span>
+</div></div>
+<div class="row nw"><div class="mark">2</div><div>
+  <b>到你等的价位了<span class="tag">你要填一次</span></b>
+  <span class="hint">你先填一个"黄金到什么价位再来提醒我"（比如金价回落到某个数、或市值回落到多少）。以后你每次更新市值，它自动比对：到了就提醒你"要不要恢复定投"，没到就闭嘴。</span>
+</div></div>
+<div class="row nw"><div class="mark">3</div><div>
+  <b>黄金盈亏到 ±10% 时提一句<span class="tag m">只是提一句</span></b>
+  <span class="hint">你黄金成本约 1901、现在市值约 2093，已经在 +10% 上。这条只是提醒"你这笔现在浮盈大概 10%"，不催你买也不催你卖。</span>
+</div></div>
+<div class="row nw"><div class="mark">4</div><div>
+  <b>状态打架兜底<span class="tag s">建议加</span><span class="tag">看不见的修正</span></b>
+  <span class="hint">黄金写着"观望暂停中"的时候，黄金定投那条计划到期提醒就不再弹（只在你要恢复时才提）。避免一个页面自相矛盾。</span>
+</div></div>
+
+<h2>三、顺手发现的一个小毛病（不影响用）</h2>
+<div class="note">
+  理财页最上面那行"本月投入 ¥X"，是把"转入"和"转回"加在一起算的；转回多的时候这个数字会虚高。下面那张 FLOW 卡里两个数是分开的，是对的。<br>
+  要不要一起改，你定（可以和上面一起说）。
+</div>
+
+<h2>四、你怎么定</h2>
+<div class="pick">
+  直接回数字就行，可多选，例如：<code>1 4</code> 或 <code>1 2 4</code><br>
+  <ol>
+    <li>= 加"该更新黄金市值了"</li>
+    <li>= 加"到你等的价位了"（要你填一个价位）</li>
+    <li>= 加"盈亏 ±10% 提一句"</li>
+    <li>= 加"状态打架兜底"</li>
+    <li><code>0</code> = 都先不加，理财页保持现在这样</li>
+    <li>顺手那个小毛病要不要改，单独回一句"改"或"不改"</li>
+  </ol>
+  <span class="hint">你定了之后：我先改设计稿（这个项目是设计先行，先对齐再写码），你点头我再改代码、发新版本，手机上点顶部蓝色条更新就行。</span>
+</div>
+
+<div class="foot">
+  数据全在你手机里；上面这些提示都是手机本地算的，不联网、不上传、不动你已经记的账。<br>
+  讨论稿 v1 · 2026-09-13 · 对应 App v4.2.8
+</div>
+
+</div>
+</body>
+</html>
